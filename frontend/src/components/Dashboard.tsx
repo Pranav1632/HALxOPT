@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import {
-  Cpu, Battery, Zap, Shield, Compass, Hourglass, BarChart3,
-  AlertCircle, Flame, Gauge, Weight, Plane,
-} from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic_import from 'next/dynamic';
+import TelemetryTable from './TelemetryTable';
 import TelemetryChart from './TelemetryChart';
 
+/* ---- Lazy-load Three.js (no SSR) ---- */
+const FlightScene = dynamic_import(() => import('./FlightScene'), { ssr: false });
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
 interface OptimalSpecs {
   engine_kw: number;
   battery_kwh: number;
@@ -35,11 +39,42 @@ interface TelemetryPoint {
   phase: string;
   deficit: number;
   u: number;
+  p_aero: number;
+  p_climb: number;
+  climb_rate: number;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
+/* ------------------------------------------------------------------ */
+/*  Utility: Format time from seconds                                  */
+/* ------------------------------------------------------------------ */
+function fmtTime(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m ${s}s`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Phase badge colors                                                 */
+/* ------------------------------------------------------------------ */
+const PHASE_BADGE: Record<string, string> = {
+  takeoff:   'bg-red-900/60 text-red-300 border-red-700/40',
+  climb:     'bg-amber-900/60 text-amber-300 border-amber-700/40',
+  cruise:    'bg-cyan-900/60 text-cyan-300 border-cyan-700/40',
+  loiter:    'bg-violet-900/60 text-violet-300 border-violet-700/40',
+  descent:   'bg-teal-900/60 text-teal-300 border-teal-700/40',
+  landing:   'bg-emerald-900/60 text-emerald-300 border-emerald-700/40',
+  completed: 'bg-slate-800/60 text-slate-400 border-slate-700/40',
+};
+
+/* ------------------------------------------------------------------ */
+/*  Main Dashboard Component                                           */
+/* ------------------------------------------------------------------ */
 export default function Dashboard() {
+  /* ---- State ---- */
   const [targetSpeedKmh, setTargetSpeedKmh] = useState<number>(250);
   const [targetAltitude, setTargetAltitude] = useState<number>(5000);
   const [payloadWeight, setPayloadWeight] = useState<number>(200);
@@ -48,10 +83,37 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [specs, setSpecs] = useState<OptimalSpecs | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'3d' | 'charts'>('3d');
 
-  const handleOptimize = async () => {
+  /* ---- Current telemetry point ---- */
+  const currentPoint = useMemo(() => {
+    if (telemetry.length === 0) return null;
+    return telemetry[Math.min(currentIndex, telemetry.length - 1)];
+  }, [telemetry, currentIndex]);
+
+  /* ---- Playback animation ---- */
+  useEffect(() => {
+    if (!isPlaying || telemetry.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => {
+        if (prev >= telemetry.length - 1) {
+          setIsPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 30);
+    return () => clearInterval(interval);
+  }, [isPlaying, telemetry.length]);
+
+  /* ---- API Call ---- */
+  const handleOptimize = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setCurrentIndex(0);
+    setIsPlaying(false);
     try {
       const response = await fetch(`${API_URL}/api/optimize`, {
         method: 'POST',
@@ -75,311 +137,328 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [targetSpeedKmh, targetAltitude, payloadWeight]);
 
   useEffect(() => { handleOptimize(); }, []);
 
-  // Weight breakdown from real component specs
-  const computeWeightBreakdown = () => {
-    if (!specs) return null;
-    return [
-      { name: 'Airframe Structure', weight: 350, color: 'bg-slate-600' },
-      { name: 'Mission Payload', weight: payloadWeight, color: 'bg-indigo-500' },
-      { name: 'Turboshaft Engine', weight: specs.engine_weight_kg, color: 'bg-blue-500' },
-      { name: 'EMRAX Motor', weight: specs.motor_weight_kg, color: 'bg-emerald-500' },
-      { name: 'Battery Pack', weight: specs.battery_weight_kg, color: 'bg-yellow-500' },
-      { name: 'Jet-A1 Fuel', weight: specs.fuel_weight_kg, color: 'bg-orange-500' },
-    ];
-  };
-  const breakdown = computeWeightBreakdown();
-
-  // Phase durations from telemetry
-  const computePhaseDurations = () => {
-    if (!telemetry || telemetry.length === 0) return null;
+  /* ---- Phase durations ---- */
+  const phaseDurations = useMemo(() => {
+    if (!telemetry.length) return null;
     const phases: Record<string, { start: number; end: number }> = {};
     for (const pt of telemetry) {
       if (!phases[pt.phase]) phases[pt.phase] = { start: pt.time, end: pt.time };
       phases[pt.phase].end = pt.time;
     }
     return phases;
-  };
-  const phaseDurations = computePhaseDurations();
+  }, [telemetry]);
 
-  const phaseColors: Record<string, string> = {
-    takeoff: 'text-red-400',
-    climb: 'text-orange-400',
-    cruise: 'text-blue-400',
-    loiter: 'text-purple-400',
-    descent: 'text-teal-400',
-    landing: 'text-emerald-400',
-    completed: 'text-slate-400',
-  };
+  /* ---- MTOW breakdown ---- */
+  const weightBreakdown = useMemo(() => {
+    if (!specs) return null;
+    return [
+      { name: 'Airframe', weight: 350, color: '#4B5563' },
+      { name: 'Payload', weight: payloadWeight, color: '#6366F1' },
+      { name: 'Turboshaft', weight: specs.engine_weight_kg, color: '#3B82F6' },
+      { name: 'EMRAX Motor', weight: specs.motor_weight_kg, color: '#10B981' },
+      { name: 'Battery', weight: specs.battery_weight_kg, color: '#F59E0B' },
+      { name: 'Fuel (Jet-A1)', weight: specs.fuel_weight_kg, color: '#EF4444' },
+    ];
+  }, [specs, payloadWeight]);
 
+  /* ================================================================ */
+  /*  RENDER                                                           */
+  /* ================================================================ */
   return (
-    <div className="flex-1 flex flex-col lg:flex-row bg-[#020617] text-slate-100 min-h-screen">
-      {/* ─── SIDEBAR ─── */}
-      <aside className="w-full lg:w-[420px] bg-[#030712] border-b lg:border-b-0 lg:border-r border-slate-800 p-6 flex flex-col gap-5 select-none shrink-0">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Compass className="w-6 h-6 text-emerald-500" />
-            <h1 className="text-xl font-bold bg-gradient-to-r from-slate-50 to-slate-300 bg-clip-text text-transparent">
-              AeroOptima
-            </h1>
-            <span className="text-[10px] bg-slate-800 text-emerald-400 font-semibold px-2 py-0.5 rounded border border-slate-700">
-              HAL × IIT Indore
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Hybrid-Electric Propulsion Optimization for a 1000 kg Fixed-Wing UAV.
-            Turboshaft + EMRAX 228 motor with Genetic Algorithm sizing.
-          </p>
+    <div className="h-screen w-screen bg-[#0B0F19] text-slate-200 flex flex-col overflow-hidden select-none">
+
+      {/* ──────────────── TOP BAR ──────────────── */}
+      <header className="h-10 flex-shrink-0 flex items-center justify-between px-4 border-b border-slate-800/60 bg-[#0D1117]">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-bold tracking-[0.2em] uppercase text-slate-300">
+            AeroOptima
+          </span>
+          <span className="text-[9px] text-slate-500 font-mono">
+            HAL × IIT Indore | PS-1 Hybrid-Electric UAV
+          </span>
         </div>
-
-        <hr className="border-slate-800" />
-
-        <h2 className="text-xs font-bold text-slate-300 tracking-widest uppercase">Mission Parameters</h2>
-
-        {/* Slider: Cruise Speed (km/h) */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between text-xs">
-            <label className="text-slate-400 font-medium">Cruise Speed</label>
-            <span className="text-emerald-400 font-mono font-bold">
-              {targetSpeedKmh} km/h
-              <span className="text-[10px] text-slate-500 ml-1">({(targetSpeedKmh * 0.539957).toFixed(0)} kts)</span>
-            </span>
-          </div>
-          <input type="range" min="150" max="350" step="5" value={targetSpeedKmh}
-            onChange={(e) => setTargetSpeedKmh(parseInt(e.target.value))} disabled={loading}
-            className="h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-50" />
-          <span className="text-[10px] text-slate-500 flex justify-between"><span>150 km/h</span><span>350 km/h</span></span>
-        </div>
-
-        {/* Slider: Cruise Altitude */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between text-xs">
-            <label className="text-slate-400 font-medium">Cruise Altitude</label>
-            <span className="text-emerald-400 font-mono font-bold">
-              {targetAltitude} m
-              <span className="text-[10px] text-slate-500 ml-1">({(targetAltitude * 3.28084).toFixed(0)} ft)</span>
-            </span>
-          </div>
-          <input type="range" min="1000" max="8000" step="250" value={targetAltitude}
-            onChange={(e) => setTargetAltitude(parseInt(e.target.value))} disabled={loading}
-            className="h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-50" />
-          <span className="text-[10px] text-slate-500 flex justify-between"><span>1000 m</span><span>8000 m</span></span>
-        </div>
-
-        {/* Slider: Payload */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex justify-between text-xs">
-            <label className="text-slate-400 font-medium">Mission Payload</label>
-            <span className="text-emerald-400 font-mono font-bold">{payloadWeight} kg</span>
-          </div>
-          <input type="range" min="100" max="300" step="5" value={payloadWeight}
-            onChange={(e) => setPayloadWeight(parseInt(e.target.value))} disabled={loading}
-            className="h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-50" />
-          <span className="text-[10px] text-slate-500 flex justify-between"><span>100 kg</span><span>300 kg</span></span>
-        </div>
-
-        {/* Optimize Button */}
-        <button onClick={handleOptimize} disabled={loading}
-          className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-slate-900 font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-950/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none">
-          {loading ? (
-            <><div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" /><span>GA Optimizing...</span></>
-          ) : (
-            <><Zap className="w-5 h-5 fill-slate-900 stroke-slate-900" /><span>Optimize Architecture</span></>
+        <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+          {specs && (
+            <>
+              <span>ENDURANCE: <b className="text-emerald-400">{specs.endurance_hours.toFixed(2)}h</b></span>
+              <span>ENGINE: <b className="text-cyan-300">{specs.engine_kw.toFixed(1)}kW</b></span>
+              <span>BATT: <b className="text-amber-300">{specs.battery_kwh.toFixed(1)}kWh</b></span>
+              <span>MOTOR: <b className="text-purple-300">{specs.motor_model}</b></span>
+            </>
           )}
-        </button>
-
-        {/* Mission Phase Timeline */}
-        {phaseDurations && !loading && (
-          <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4 flex flex-col gap-2">
-            <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-              <Plane className="w-3.5 h-3.5 text-emerald-500" /> Mission Phase Timeline
-            </h3>
-            {Object.entries(phaseDurations).filter(([p]) => p !== 'completed').map(([phase, t]) => {
-              const durMin = (t.end - t.start) / 60;
-              return (
-                <div key={phase} className="flex justify-between text-[11px]">
-                  <span className={`capitalize font-medium ${phaseColors[phase] || 'text-slate-400'}`}>{phase}</span>
-                  <span className="text-slate-300 font-mono">{durMin.toFixed(1)} min</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-950/40 border border-red-800 text-red-300 rounded-xl p-3 flex gap-2 items-start text-xs animate-fade-in">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
-            <div><p className="font-semibold">Backend Error</p><p className="text-[11px] text-red-400/90 mt-0.5">{error}</p></div>
-          </div>
-        )}
-
-        <div className="text-[10px] text-slate-500 mt-auto leading-relaxed border-t border-slate-800 pt-3">
-          DEAP Genetic Algorithm optimizes engine size (kW) &amp; battery capacity (kWh) across 15 generations.
-          Heuristic power management per Zhang et al.: motor for climb peaks, engine at optimal SFC for cruise.
         </div>
-      </aside>
+      </header>
 
-      {/* ─── MAIN CONTENT ─── */}
-      <main className="flex-1 p-6 flex flex-col gap-6 overflow-y-auto">
+      {/* ──────────────── MAIN 3-PANEL GRID ──────────────── */}
+      <div className="flex-1 flex overflow-hidden">
 
-        {/* Metric Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {/* Endurance */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Max Endurance</p>
-              <h3 className="text-2xl font-bold text-slate-50 font-mono mt-1">
-                {loading ? '---' : specs ? `${specs.endurance_hours.toFixed(2)} hrs` : 'N/A'}
-              </h3>
-              <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
-                <Shield className="w-3 h-3" /> Full Mission Profile
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <Hourglass className="w-6 h-6" />
-            </div>
-          </div>
+        {/* ═══════ PANEL A: Controls & Status (Left) ═══════ */}
+        <aside className="w-[280px] flex-shrink-0 border-r border-slate-800/60 bg-[#0D1117] flex flex-col overflow-y-auto">
 
-          {/* Turboshaft */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Turboshaft Engine</p>
-              <h3 className="text-2xl font-bold text-slate-50 font-mono mt-1">
-                {loading ? '---' : specs ? `${specs.engine_kw.toFixed(1)} kW` : 'N/A'}
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-1">
-                {specs ? `${specs.engine_weight_kg.toFixed(1)} kg | SFC: 0.38 kg/kWh` : ''}
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
-              <Flame className="w-6 h-6" />
-            </div>
-          </div>
+          {/* Section: Mission Parameters */}
+          <div className="p-3 border-b border-slate-800/40">
+            <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+              Simulation Constraints
+            </h2>
 
-          {/* Battery */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Battery Pack</p>
-              <h3 className="text-2xl font-bold text-slate-50 font-mono mt-1">
-                {loading ? '---' : specs ? `${specs.battery_kwh.toFixed(1)} kWh` : 'N/A'}
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-1">
-                {specs ? `${specs.battery_weight_kg.toFixed(1)} kg | 250 Wh/kg NCA` : ''}
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
-              <Battery className="w-6 h-6" />
-            </div>
-          </div>
-
-          {/* Motor */}
-          <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Electric Motor</p>
-              <h3 className="text-2xl font-bold text-slate-50 font-mono mt-1">
-                {loading ? '---' : specs ? `${specs.motor_kw.toFixed(0)} kW` : 'N/A'}
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-1">
-                {specs ? `${specs.motor_model} | ${specs.motor_weight_kg} kg` : ''}
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
-              <Zap className="w-6 h-6" />
-            </div>
-          </div>
-        </section>
-
-        {/* Telemetry Chart */}
-        <section className="w-full">
-          {loading ? (
-            <div className="h-[450px] w-full flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-xl text-slate-400">
-              <div className="w-12 h-12 border-4 border-slate-700 border-t-emerald-500 rounded-full animate-spin mb-4" />
-              <p className="font-semibold text-slate-200">Running Genetic Algorithm...</p>
-              <p className="text-xs text-slate-400 mt-1">Sizing propulsion &amp; simulating full mission profile</p>
-            </div>
-          ) : (
-            <TelemetryChart telemetry={telemetry} />
-          )}
-        </section>
-
-        {/* Weight Breakdown + Architecture Constants */}
-        {specs && !loading && (
-          <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Weight Budget */}
-            <div className="xl:col-span-2 bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col gap-4">
-              <div>
-                <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-emerald-500" /> MTOW Budget Breakdown
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Constrained to {specs.total_weight_kg} kg maximum takeoff weight.</p>
+            {/* Cruise Speed */}
+            <div className="mb-2.5">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="text-slate-400">Cruise Speed</span>
+                <span className="font-mono text-emerald-400 font-bold">{targetSpeedKmh} km/h</span>
               </div>
-              <div className="h-7 w-full flex rounded-lg overflow-hidden bg-slate-800">
-                {breakdown?.map((bar, i) => (
-                  <div key={i} style={{ width: `${(bar.weight / 1000) * 100}%` }}
-                    className={`${bar.color} h-full transition-all duration-500 hover:brightness-125 cursor-help`}
-                    title={`${bar.name}: ${bar.weight.toFixed(1)} kg (${((bar.weight / 1000) * 100).toFixed(1)}%)`} />
+              <input type="range" min="150" max="350" step="5" value={targetSpeedKmh}
+                onChange={(e) => setTargetSpeedKmh(parseInt(e.target.value))} disabled={loading}
+                className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
+            </div>
+
+            {/* Altitude */}
+            <div className="mb-2.5">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="text-slate-400">Target Altitude</span>
+                <span className="font-mono text-emerald-400 font-bold">{targetAltitude}m</span>
+              </div>
+              <input type="range" min="3000" max="10000" step="250" value={targetAltitude}
+                onChange={(e) => setTargetAltitude(parseInt(e.target.value))} disabled={loading}
+                className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
+            </div>
+
+            {/* Payload */}
+            <div className="mb-3">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="text-slate-400">Payload Mass</span>
+                <span className="font-mono text-emerald-400 font-bold">{payloadWeight} kg</span>
+              </div>
+              <input type="range" min="100" max="300" step="5" value={payloadWeight}
+                onChange={(e) => setPayloadWeight(parseInt(e.target.value))} disabled={loading}
+                className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
+            </div>
+
+            {/* Execute Button */}
+            <button onClick={handleOptimize} disabled={loading}
+              className="w-full py-2 text-[11px] font-bold uppercase tracking-[0.15em] rounded border transition-all
+                bg-emerald-600/20 border-emerald-600/40 text-emerald-300 hover:bg-emerald-600/30 hover:border-emerald-500/60
+                disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-2">
+              {loading ? (
+                <><div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />OPTIMIZING...</>
+              ) : (
+                <>▶ EXECUTE GA OPTIMIZER</>
+              )}
+            </button>
+          </div>
+
+          {/* Section: Current State */}
+          {currentPoint && !loading && (
+            <div className="p-3 border-b border-slate-800/40">
+              <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+                Current State — T+{fmtTime(currentPoint.time)}
+              </h2>
+              <div className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded border mb-2 ${PHASE_BADGE[currentPoint.phase] || PHASE_BADGE.completed}`}>
+                {currentPoint.phase}
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
+                <div>
+                  <span className="text-slate-500 text-[9px]">ALT</span>
+                  <p className="font-mono font-bold text-slate-100">{currentPoint.altitude.toFixed(0)}m</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">TAS</span>
+                  <p className="font-mono font-bold text-slate-100">{(currentPoint.speed * 3.6).toFixed(0)} km/h</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">P_REQ</span>
+                  <p className="font-mono font-bold text-slate-100">{currentPoint.power_required.toFixed(1)} kW</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">PSR</span>
+                  <p className={`font-mono font-bold ${currentPoint.u > 0.4 ? 'text-amber-400' : currentPoint.u > 0.1 ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                    {(currentPoint.u * 100).toFixed(0)}%
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">MOTOR</span>
+                  <p className="font-mono font-bold text-amber-300">{currentPoint.power_motor.toFixed(1)} kW</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">ENGINE</span>
+                  <p className="font-mono font-bold text-cyan-300">{currentPoint.power_engine.toFixed(1)} kW</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">SOC</span>
+                  <p className={`font-mono font-bold ${currentPoint.soc < 0.2 ? 'text-red-400' : 'text-yellow-300'}`}>
+                    {(currentPoint.soc * 100).toFixed(1)}%
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[9px]">FUEL</span>
+                  <p className={`font-mono font-bold ${currentPoint.fuel < 30 ? 'text-red-400' : 'text-slate-100'}`}>
+                    {currentPoint.fuel.toFixed(1)} kg
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section: Phase Timeline */}
+          {phaseDurations && !loading && (
+            <div className="p-3 border-b border-slate-800/40">
+              <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+                Mission Profile
+              </h2>
+              {Object.entries(phaseDurations).filter(([p]) => p !== 'completed').map(([phase, t]) => {
+                const durMin = (t.end - t.start) / 60;
+                return (
+                  <div key={phase} className="flex justify-between text-[10px] py-0.5">
+                    <span className={`capitalize font-medium ${PHASE_BADGE[phase]?.includes('text-') ? PHASE_BADGE[phase].split(' ').find(c => c.startsWith('text-')) : 'text-slate-400'}`}>
+                      {phase}
+                    </span>
+                    <span className="text-slate-300 font-mono">{durMin.toFixed(1)} min</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Section: Weight Budget */}
+          {weightBreakdown && !loading && (
+            <div className="p-3 border-b border-slate-800/40">
+              <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+                MTOW Budget — {specs?.total_weight_kg} kg
+              </h2>
+              {/* Stacked bar */}
+              <div className="h-3 w-full flex rounded overflow-hidden mb-2">
+                {weightBreakdown.map((bar, i) => (
+                  <div key={i} style={{ width: `${(bar.weight / 1000) * 100}%`, backgroundColor: bar.color }}
+                    className="h-full transition-all duration-300" title={`${bar.name}: ${bar.weight.toFixed(1)} kg`} />
                 ))}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mt-1">
-                {breakdown?.map((bar, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-slate-900/60 border border-slate-800/40 rounded-lg p-2.5">
-                    <span className={`w-3 h-3 rounded shrink-0 ${bar.color}`} />
-                    <div className="overflow-hidden">
-                      <p className="text-[10px] text-slate-400 font-medium truncate">{bar.name}</p>
-                      <p className="font-semibold text-slate-200 font-mono mt-0.5">
-                        {bar.weight.toFixed(1)} kg
-                        <span className="text-[10px] text-slate-500 font-normal ml-1">
-                          ({((bar.weight / 1000) * 100).toFixed(0)}%)
-                        </span>
-                      </p>
+              {weightBreakdown.map((bar, i) => (
+                <div key={i} className="flex justify-between text-[10px] py-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: bar.color }} />
+                    <span className="text-slate-400">{bar.name}</span>
+                  </span>
+                  <span className="font-mono text-slate-200">{bar.weight.toFixed(1)} kg</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Section: Architecture */}
+          {specs && !loading && (
+            <div className="p-3 text-[10px]">
+              <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+                System Constants
+              </h2>
+              <div className="space-y-1">
+                <div className="flex justify-between"><span className="text-slate-500">Drag Polar</span><span className="font-mono text-slate-300">Oswald AR=16.07</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">SFC</span><span className="font-mono text-slate-300">0.38 kg/kWh</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">C-Rate Limit</span><span className="font-mono text-yellow-400">3C/5C</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Motor η</span><span className="font-mono text-slate-300">96%</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Strategy</span><span className="font-mono text-emerald-400">Zhang et al.</span></div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3">
+              <div className="bg-red-950/40 border border-red-800/40 text-red-300 rounded p-2 text-[10px]">
+                <span className="font-bold">ERR:</span> {error}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* ═══════ PANEL B + C: Main Content (Right) ═══════ */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+          {/* Tab Switcher */}
+          <div className="h-8 flex-shrink-0 flex items-center border-b border-slate-800/60 bg-[#0D1117] px-2 gap-1">
+            <button onClick={() => setActiveTab('3d')}
+              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors
+                ${activeTab === '3d' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+              3D Flight Profile
+            </button>
+            <button onClick={() => setActiveTab('charts')}
+              className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors
+                ${activeTab === 'charts' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
+              Telemetry Charts
+            </button>
+            <div className="flex-1" />
+            {currentPoint && (
+              <span className="text-[10px] font-mono text-slate-500">
+                T+{fmtTime(currentPoint.time)} | {currentPoint.altitude.toFixed(0)}m ALT | {currentPoint.phase.toUpperCase()}
+              </span>
+            )}
+          </div>
+
+          {/* Content Area: 3D Scene or Charts + Data Table */}
+          <div className="flex-1 flex overflow-hidden">
+
+            {/* Left: 3D Canvas or Charts */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+
+              {loading ? (
+                <div className="flex-1 flex flex-col items-center justify-center bg-[#0B0F19] text-slate-400">
+                  <div className="w-14 h-14 border-4 border-slate-700 border-t-emerald-500 rounded-full animate-spin mb-4" />
+                  <p className="font-bold text-xs text-slate-200 tracking-wider">GENETIC ALGORITHM EXECUTING</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">Sizing propulsion architecture | 40 pop × 15 gen</p>
+                </div>
+              ) : activeTab === '3d' ? (
+                <>
+                  {/* 3D Scene */}
+                  <div className="flex-1 relative">
+                    <FlightScene telemetry={telemetry} currentIndex={currentIndex} />
+                    {/* Legend overlay */}
+                    <div className="absolute bottom-2 left-2 flex gap-3 text-[9px] font-mono bg-[#0B0F19]/80 px-2 py-1 rounded border border-slate-800/40">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />BATTERY</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-500" />HYBRID</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />ENGINE</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-500" />IDLE</span>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* Timeline Scrubber */}
+                  <div className="h-10 flex-shrink-0 flex items-center gap-3 px-3 border-t border-slate-800/60 bg-[#0D1117]">
+                    <button onClick={() => setIsPlaying(!isPlaying)}
+                      className="w-7 h-7 flex items-center justify-center text-xs border border-slate-700 rounded text-slate-300 hover:bg-slate-800 transition-colors">
+                      {isPlaying ? '⏸' : '▶'}
+                    </button>
+                    <input type="range" min="0" max={Math.max(0, telemetry.length - 1)} step="1" value={currentIndex}
+                      onChange={(e) => { setCurrentIndex(parseInt(e.target.value)); setIsPlaying(false); }}
+                      className="flex-1 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500" />
+                    <span className="text-[10px] font-mono text-slate-400 w-20 text-right">
+                      {telemetry.length > 0 ? `${currentIndex + 1}/${telemetry.length}` : '0/0'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                /* Charts Tab */
+                <div className="flex-1 overflow-y-auto p-2">
+                  <TelemetryChart telemetry={telemetry} />
+                </div>
+              )}
             </div>
 
-            {/* Architecture Constants */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col gap-3">
-              <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-                <Gauge className="w-5 h-5 text-emerald-500" /> Architecture Specs
-              </h3>
-              <div className="flex-1 flex flex-col justify-between gap-2.5 text-xs">
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Empty Weight (no payload)</span>
-                  <span className="font-semibold text-slate-200 font-mono">{specs.empty_weight_kg.toFixed(1)} kg</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Payload Weight</span>
-                  <span className="font-semibold text-slate-200 font-mono">{payloadWeight} kg</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Fuel Capacity (Jet-A1)</span>
-                  <span className="font-semibold text-orange-400 font-mono">{specs.fuel_weight_kg.toFixed(1)} kg</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Power Strategy</span>
-                  <span className="font-semibold text-slate-200 font-mono text-right">Zhang et al. Heuristic</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Drag Polar</span>
-                  <span className="font-semibold text-slate-200 font-mono">Oswald (AR=16.07)</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-800 pb-2">
-                  <span className="text-slate-400">Battery C-rate Limit</span>
-                  <span className="font-semibold text-yellow-400 font-mono">3C cont / 5C peak</span>
-                </div>
-                <div className="flex justify-between pt-1">
-                  <span className="text-slate-400 font-medium">MTOW Constraint</span>
-                  <span className="font-bold text-emerald-400 font-mono">1000.0 kg</span>
-                </div>
+            {/* Right: Dense Telemetry Matrix */}
+            <div className="w-[620px] flex-shrink-0 border-l border-slate-800/60 bg-[#0D1117] flex flex-col overflow-hidden">
+              <div className="h-7 flex-shrink-0 flex items-center px-2 border-b border-slate-800/40">
+                <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em]">
+                  Propulsion Status Matrix — kW
+                </h3>
               </div>
+              <TelemetryTable telemetry={telemetry} currentIndex={currentIndex} onIndexChange={(i) => { setCurrentIndex(i); setIsPlaying(false); }} />
             </div>
-          </section>
-        )}
-      </main>
+
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
