@@ -1,0 +1,6 @@
+{
+  "specific_weight": 0.6,
+  "specific_fuel_consumption": 0.38,
+  "min_size_kw": 20.0,
+  "max_size_kw": 250.0
+}

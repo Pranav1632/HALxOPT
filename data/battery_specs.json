@@ -1,0 +1,9 @@
+{
+  "energy_density_wh_kg": 240.0,
+  "motor_specific_weight": 0.85,
+  "electrical_efficiency": 0.90,
+  "min_capacity_kwh": 5.0,
+  "max_capacity_kwh": 80.0,
+  "min_motor_kw": 10.0,
+  "max_motor_kw": 150.0
+}

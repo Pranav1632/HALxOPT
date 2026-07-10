@@ -1,0 +1,8 @@
+{
+  "drag_coefficient_zero": 0.025,
+  "induced_drag_factor": 0.05,
+  "wing_area": 6.5,
+  "air_density_sea_level": 1.225,
+  "airframe_mass_baseline": 350.0,
+  "propeller_efficiency": 0.82
+}
