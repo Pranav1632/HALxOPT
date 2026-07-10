@@ -49,6 +49,8 @@ class UAVHybridEnv(gym.Env):
         data_dir: str = None,
         use_heuristic_policy: bool = True,
         dt: float = 10.0,
+        enable_loiter: bool = True,
+        initial_fuel_fraction: float = 1.0,
     ):
         super().__init__()
 
@@ -60,6 +62,8 @@ class UAVHybridEnv(gym.Env):
         self.payload_weight = payload_weight
         self.use_heuristic_policy = use_heuristic_policy
         self.dt = dt
+        self.enable_loiter = enable_loiter
+        self.initial_fuel_fraction = max(0.1, min(1.0, initial_fuel_fraction))
 
         # Resolve data directory
         if data_dir is None:
@@ -101,8 +105,9 @@ class UAVHybridEnv(gym.Env):
             + self.weight_battery
         )
 
-        # Fuel capacity = remaining mass budget
-        self.fuel_initial = self.mtow - self.weight_empty_and_payload
+        # Fuel capacity = remaining mass budget, optionally capped by user fraction
+        raw_fuel = self.mtow - self.weight_empty_and_payload
+        self.fuel_initial = raw_fuel * self.initial_fuel_fraction
 
         # Motor limits from EMRAX spec
         self.motor_continuous_kw = self.motor_specs["continuous_power_kw"]
@@ -199,18 +204,13 @@ class UAVHybridEnv(gym.Env):
     #  Power Required (Core Physics)                                      #
     # ------------------------------------------------------------------ #
     def _compute_power_required(self, weight: float, speed: float, altitude: float,
-                                 climb_rate: float, phase: str) -> float:
+                                 climb_rate: float, phase: str) -> tuple[float, float, float]:
         """
-        Compute total shaft power required using the governing equations:
-          P_req = (P_aero + P_climb) / η_prop
-        Where:
-          P_aero = 0.5·ρ·V³·S·CD   [Watts]
-          CD = CD0 + CL² / (π·AR·e)
-          CL = 2·m·g·cos(γ) / (ρ·V²·S)
-          P_climb = m·g·Vz           [Watts]
+        Compute total shaft power required using the governing equations.
+        Returns: (p_req_kw, p_aero_kw, p_climb_kw)
         """
         if speed < 1.0:
-            return 0.0
+            return (0.0, 0.0, 0.0)
 
         rho = self._atmosphere(altitude)
         S = self.aero["wing_area_m2"]
@@ -218,30 +218,19 @@ class UAVHybridEnv(gym.Env):
         e = self.aero["oswald_efficiency_factor_e"]
         AR = self.aspect_ratio
 
-        # Flight path angle
         gamma = math.asin(max(-1.0, min(1.0, climb_rate / speed)))
-
-        # Lift coefficient required for weight support
         CL = (2.0 * weight * self.g * math.cos(gamma)) / (rho * speed ** 2 * S)
-
-        # Drag coefficient — Oswald drag polar
         CL_induced_term = CL ** 2 / (math.pi * AR * e)
         CD = CD0 + CL_induced_term
 
-        # Aerodynamic drag power [Watts]
         P_aero_W = 0.5 * rho * (speed ** 3) * S * CD
-
-        # Climb power [Watts]
         P_climb_W = weight * self.g * climb_rate
-
-        # Total propulsive power [Watts]
         P_prop_W = P_aero_W + P_climb_W
 
-        # Shaft power required (account for propeller efficiency)
         eta_prop = self._prop_efficiency(phase)
         P_shaft_W = max(0.0, P_prop_W / eta_prop)
 
-        return P_shaft_W / 1000.0  # Convert to kW
+        return (P_shaft_W / 1000.0, P_aero_W / 1000.0, P_climb_W / 1000.0)
 
     # ------------------------------------------------------------------ #
     #  SFC with Partial-Load Penalty                                      #
@@ -330,7 +319,8 @@ class UAVHybridEnv(gym.Env):
     #  Telemetry Logging                                                  #
     # ------------------------------------------------------------------ #
     def _log_telemetry(self, psr: float, p_req: float, p_motor: float,
-                        p_engine: float, p_delivered: float, p_deficit: float):
+                        p_engine: float, p_delivered: float, p_deficit: float,
+                        p_aero: float = 0.0, p_climb: float = 0.0, climb_rate: float = 0.0):
         self.flight_log.append({
             "time": round(self.time_elapsed, 2),
             "altitude": round(self.altitude, 1),
@@ -345,6 +335,9 @@ class UAVHybridEnv(gym.Env):
             "phase": self.current_phase,
             "deficit": round(p_deficit, 3),
             "u": round(psr, 4),
+            "p_aero": round(p_aero, 3),
+            "p_climb": round(p_climb, 3),
+            "climb_rate": round(climb_rate, 3),
         })
 
     # ------------------------------------------------------------------ #
@@ -429,7 +422,7 @@ class UAVHybridEnv(gym.Env):
             climb_rate = 0.0
 
         # ---- Compute Power Required ----
-        p_req_kw = self._compute_power_required(
+        p_req_kw, p_aero_kw, p_climb_kw = self._compute_power_required(
             current_weight, self.speed, self.altitude, climb_rate, self.current_phase
         )
 
@@ -499,7 +492,8 @@ class UAVHybridEnv(gym.Env):
 
         # Log telemetry
         actual_psr = p_motor / p_req_kw if p_req_kw > 0 else 0.0
-        self._log_telemetry(actual_psr, p_req_kw, p_motor, p_engine, p_delivered, p_deficit)
+        self._log_telemetry(actual_psr, p_req_kw, p_motor, p_engine, p_delivered, p_deficit,
+                            p_aero=p_aero_kw, p_climb=p_climb_kw, climb_rate=climb_rate)
 
         # ---- Phase Transitions ----
         fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0
@@ -511,9 +505,14 @@ class UAVHybridEnv(gym.Env):
             self.current_phase = self.PHASE_CRUISE
 
         elif self.current_phase == self.PHASE_CRUISE:
-            # Transition to loiter when 60% of fuel is consumed
-            if fuel_ratio < 0.40:
-                self.current_phase = self.PHASE_LOITER
+            if self.enable_loiter:
+                # Transition to loiter when 60% of fuel is consumed
+                if fuel_ratio < 0.40:
+                    self.current_phase = self.PHASE_LOITER
+            else:
+                # Non-loiter: continue straight in cruise, transition directly to descent when resources low
+                if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03):
+                    self.current_phase = self.PHASE_DESCENT
 
         elif self.current_phase == self.PHASE_LOITER:
             # Begin descent when both resources are critically low

@@ -40,7 +40,6 @@ def load_bounds(data_dir: str) -> dict:
         "battery": (battery_specs.get("min_capacity_kwh", 5.0), battery_specs.get("max_capacity_kwh", 50.0)),
     }
 
-
 def evaluate_individual(
     individual,
     target_speed_kmh: float,
@@ -48,6 +47,8 @@ def evaluate_individual(
     payload_weight: float,
     data_dir: str,
     bounds: dict,
+    enable_loiter: bool = True,
+    initial_fuel_fraction: float = 1.0,
 ):
     """
     Evaluate a single GA individual by running a full flight simulation.
@@ -69,7 +70,9 @@ def evaluate_individual(
             payload_weight=payload_weight,
             data_dir=data_dir,
             use_heuristic_policy=True,
-            dt=60.0,  # 60-second steps for fast evaluation
+            dt=60.0,
+            enable_loiter=enable_loiter,
+            initial_fuel_fraction=initial_fuel_fraction,
         )
     except Exception:
         return (0.0,)
@@ -94,7 +97,6 @@ def evaluate_individual(
 
     return (endurance_hours,)
 
-
 def optimize_propulsion(
     target_speed_kmh: float = 250.0,
     target_altitude: float = 5000.0,
@@ -102,6 +104,8 @@ def optimize_propulsion(
     data_dir: str = None,
     pop_size: int = 40,
     n_gen: int = 15,
+    enable_loiter: bool = True,
+    initial_fuel_fraction: float = 1.0,
 ):
     """
     Run the DEAP Genetic Algorithm to find the optimal propulsion sizing.
@@ -138,6 +142,8 @@ def optimize_propulsion(
         payload_weight=payload_weight,
         data_dir=data_dir,
         bounds=bounds,
+        enable_loiter=enable_loiter,
+        initial_fuel_fraction=initial_fuel_fraction,
     )
 
     # Genetic operators

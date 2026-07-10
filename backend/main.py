@@ -64,6 +64,16 @@ class OptimizationRequest(BaseModel):
         ge=50.0,
         le=350.0,
     )
+    enable_loiter: bool = Field(
+        True,
+        description="Toggle loiter holding phase vs straight flight"
+    )
+    initial_fuel_fraction: float = Field(
+        1.0,
+        description="Fraction of max fuel capacity to start with (0.1–1.0)",
+        ge=0.1,
+        le=1.0,
+    )
 
 
 class OptimalSpecs(BaseModel):
@@ -94,6 +104,9 @@ class TelemetryPoint(BaseModel):
     phase: str
     deficit: float
     u: float
+    p_aero: float = 0.0
+    p_climb: float = 0.0
+    climb_rate: float = 0.0
 
 
 class OptimizationResponse(BaseModel):
@@ -111,6 +124,8 @@ async def optimize_uav(req: OptimizationRequest):
             target_altitude=req.target_altitude,
             payload_weight=req.payload_weight,
             data_dir=DATA_DIR,
+            enable_loiter=req.enable_loiter,
+            initial_fuel_fraction=req.initial_fuel_fraction,
         )
 
         opt_engine = ga_result["engine_size_kw"]
@@ -125,7 +140,9 @@ async def optimize_uav(req: OptimizationRequest):
             payload_weight=req.payload_weight,
             data_dir=DATA_DIR,
             use_heuristic_policy=True,
-            dt=60.0,  # 1-minute resolution for telemetry
+            dt=60.0,
+            enable_loiter=req.enable_loiter,
+            initial_fuel_fraction=req.initial_fuel_fraction,
         )
 
         obs, info = env.reset()
