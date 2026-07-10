@@ -80,6 +80,7 @@ export default function Dashboard() {
   const [payloadWeight, setPayloadWeight] = useState<number>(200);
   const [enableLoiter, setEnableLoiter] = useState<boolean>(true);
   const [showMatrix, setShowMatrix] = useState<boolean>(true);
+  const [initialFuelFraction, setInitialFuelFraction] = useState<number>(1.0);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +126,7 @@ export default function Dashboard() {
           target_altitude: targetAltitude,
           payload_weight: payloadWeight,
           enable_loiter: enableLoiter,
+          initial_fuel_fraction: initialFuelFraction,
         }),
       });
       if (!response.ok) {
@@ -140,7 +142,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter]);
+  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, initialFuelFraction]);
 
   useEffect(() => { handleOptimize(); }, []);
 
@@ -242,6 +244,20 @@ export default function Dashboard() {
                 className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
             </div>
 
+            {/* Initial Fuel Load */}
+            <div className="mb-2.5">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="text-slate-400">Initial Fuel Load</span>
+                <span className="font-mono text-orange-400 font-bold">{Math.round(initialFuelFraction * 100)}%</span>
+              </div>
+              <input type="range" min="0.1" max="1.0" step="0.05" value={initialFuelFraction}
+                onChange={(e) => setInitialFuelFraction(parseFloat(e.target.value))} disabled={loading}
+                className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-orange-500 disabled:opacity-40" />
+              <div className="text-[9px] text-slate-600 mt-0.5">
+                100% = full tank (max endurance)
+              </div>
+            </div>
+
             {/* Loiter Toggle Checkbox */}
             <div className="flex items-center gap-2 mb-3">
               <input type="checkbox" id="loiterToggle" checked={enableLoiter}
@@ -289,8 +305,8 @@ export default function Dashboard() {
                   <p className="font-mono font-bold text-slate-100">{currentPoint.power_required.toFixed(1)} kW</p>
                 </div>
                 <div>
-                  <span className="text-slate-500 text-[9px]">PSR</span>
-                  <p className={`font-mono font-bold ${currentPoint.u > 0.4 ? 'text-amber-400' : currentPoint.u > 0.1 ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                  <span className="text-slate-500 text-[9px]" title="Power Split Ratio: % of total power from electric motor (0%=pure engine, 100%=pure motor)">ELEC%</span>
+                  <p className={`font-mono font-bold ${currentPoint.u > 0.4 ? 'text-amber-400' : currentPoint.u > 0.05 ? 'text-cyan-400' : 'text-slate-500'}`}>
                     {(currentPoint.u * 100).toFixed(0)}%
                   </p>
                 </div>
