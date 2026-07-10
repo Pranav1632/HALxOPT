@@ -1,9 +1,13 @@
 {
-  "energy_density_wh_kg": 240.0,
-  "motor_specific_weight": 0.85,
-  "electrical_efficiency": 0.90,
+  "cell_format": "21700 Cylindrical",
+  "chemistry": "Lithium-Ion (NCA)",
+  "energy_density_wh_per_kg": 250,
+  "max_continuous_discharge_c_rate": 3.0,
+  "max_peak_discharge_c_rate": 5.0,
+  "charging_efficiency_percent": 92,
+  "min_soc_limit": 0.10,
+  "max_soc_limit": 0.95,
   "min_capacity_kwh": 5.0,
-  "max_capacity_kwh": 80.0,
-  "min_motor_kw": 10.0,
-  "max_motor_kw": 150.0
+  "max_capacity_kwh": 50.0,
+  "notes": "A 10 kWh battery using this profile weighs exactly 40 kg. Do not exceed the continuous C-rate during cruise phase."
 }

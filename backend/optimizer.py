@@ -1,173 +1,215 @@
+"""
+optimizer.py — DEAP Genetic Algorithm for Hybrid-Electric UAV Component Sizing.
+
+Outer Loop: Optimizes two design variables:
+  1. engine_size_kw  — Turboshaft shaft power rating (scales weight from reference spec)
+  2. battery_capacity_kwh — Battery pack energy (scales weight from energy density)
+
+The electric motor is a FIXED off-the-shelf component (EMRAX 228, 12.3 kg).
+
+For each candidate individual the GA:
+  1. Computes total weight (airframe + payload + engine + motor + battery + fuel)
+  2. Checks MTOW ≤ 1000 kg constraint (fuel = remaining budget)
+  3. Runs a full flight simulation through UAVHybridEnv with heuristic power management
+  4. Returns endurance (hours) as the fitness value to MAXIMIZE
+"""
+
 import os
 import json
 import random
 import numpy as np
-from deap import base, creator, tools, algorithms
+from deap import base, creator, tools
 from environment import UAVHybridEnv
 
-# Create fitness and individual types if not already registered
+# ---- DEAP Type Registration (idempotent) ---- #
 if not hasattr(creator, "FitnessMax"):
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 if not hasattr(creator, "Individual"):
     creator.create("Individual", list, fitness=creator.FitnessMax)
 
-def evaluate_individual(individual, target_speed, target_altitude, payload_weight, data_dir, bounds):
-    # Unpack individual
-    engine_size_kw, battery_capacity_kwh, motor_size_kw = individual
-    
-    # Clip parameters to bounds to ensure physical correctness
-    engine_size_kw = max(bounds["engine"][0], min(engine_size_kw, bounds["engine"][1]))
-    battery_capacity_kwh = max(bounds["battery"][0], min(battery_capacity_kwh, bounds["battery"][1]))
-    motor_size_kw = max(bounds["motor"][0], min(motor_size_kw, bounds["motor"][1]))
-    
-    # Instantiate the Gymnasium environment
-    try:
-        env = UAVHybridEnv(
-            engine_size_kw=engine_size_kw,
-            battery_capacity_kwh=battery_capacity_kwh,
-            motor_size_kw=motor_size_kw,
-            target_speed=target_speed,
-            target_altitude=target_altitude,
-            payload_weight=payload_weight,
-            data_dir=data_dir,
-            use_dummy_policy=True,
-            dt=60.0
-        )
-    except Exception:
-        return (0.0,)
-        
-    # Check weight constraints
-    if env.weight_empty_and_payload > 1000.0 or env.fuel_initial <= 0.0:
-        return (0.0,)  # Massive penalty: exceeding MTOW limits
-        
-    # Run simulation
-    obs, info = env.reset()
-    terminated = False
-    truncated = False
-    
-    while not (terminated or truncated):
-        obs, reward, terminated, truncated, info = env.step([0.5])
-        
-    # Sizing endurance in hours
-    endurance_hours = env.time_elapsed / 3600.0
-    
-    # Penalize if it crashed, stalled or ran out of fuel before descending
-    if "Landed" not in info.get("reason", ""):
-        return (endurance_hours * 0.4,)  # 60% penalty for failure to complete mission safely
-        
-    return (endurance_hours,)
 
-def optimize_propulsion(target_speed, target_altitude, payload_weight, data_dir=None):
-    if data_dir is None:
-        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
-        
-    # Load specs to define bounds dynamically
+def load_bounds(data_dir: str) -> dict:
+    """Load component sizing bounds dynamically from /data JSON files."""
     with open(os.path.join(data_dir, "turboshaft_specs.json"), "r") as f:
         engine_specs = json.load(f)
     with open(os.path.join(data_dir, "battery_specs.json"), "r") as f:
         battery_specs = json.load(f)
 
-    bounds = {
-        "engine": (engine_specs["min_size_kw"], engine_specs["max_size_kw"]),
-        "battery": (battery_specs["min_capacity_kwh"], battery_specs["max_capacity_kwh"]),
-        "motor": (battery_specs["min_motor_kw"], battery_specs["max_motor_kw"])
+    return {
+        "engine": (engine_specs.get("min_size_kw", 30.0), engine_specs.get("max_size_kw", 120.0)),
+        "battery": (battery_specs.get("min_capacity_kwh", 5.0), battery_specs.get("max_capacity_kwh", 50.0)),
     }
 
-    # Setup Toolbox
+
+def evaluate_individual(
+    individual,
+    target_speed_kmh: float,
+    target_altitude: float,
+    payload_weight: float,
+    data_dir: str,
+    bounds: dict,
+):
+    """
+    Evaluate a single GA individual by running a full flight simulation.
+    Returns (endurance_hours,) as a single-objective fitness tuple.
+    """
+    engine_kw, battery_kwh = individual
+
+    # Clip to physical bounds
+    engine_kw = max(bounds["engine"][0], min(engine_kw, bounds["engine"][1]))
+    battery_kwh = max(bounds["battery"][0], min(battery_kwh, bounds["battery"][1]))
+
+    # Instantiate the Gymnasium environment
+    try:
+        env = UAVHybridEnv(
+            engine_size_kw=engine_kw,
+            battery_capacity_kwh=battery_kwh,
+            target_speed_kmh=target_speed_kmh,
+            target_altitude=target_altitude,
+            payload_weight=payload_weight,
+            data_dir=data_dir,
+            use_heuristic_policy=True,
+            dt=60.0,  # 60-second steps for fast evaluation
+        )
+    except Exception:
+        return (0.0,)
+
+    # MTOW constraint check: fuel_initial ≤ 0 means weight budget exceeded
+    if env.fuel_initial <= 0.0:
+        return (0.0,)  # Massive penalty
+
+    # Run simulation
+    obs, info = env.reset()
+    terminated, truncated = False, False
+    while not (terminated or truncated):
+        obs, reward, terminated, truncated, info = env.step([0.5])  # action ignored by heuristic
+
+    # Fitness = total flight time in hours
+    endurance_hours = env.time_elapsed / 3600.0
+
+    # Penalize non-successful missions (didn't complete full profile to landing)
+    reason = info.get("reason", "")
+    if "Landed" not in reason and "Mission completed" not in reason:
+        endurance_hours *= 0.4  # 60% penalty for incomplete mission
+
+    return (endurance_hours,)
+
+
+def optimize_propulsion(
+    target_speed_kmh: float = 250.0,
+    target_altitude: float = 5000.0,
+    payload_weight: float = 200.0,
+    data_dir: str = None,
+    pop_size: int = 40,
+    n_gen: int = 15,
+):
+    """
+    Run the DEAP Genetic Algorithm to find the optimal propulsion sizing.
+    Returns a dict with the best engine_size_kw, battery_capacity_kwh, and fitness.
+    """
+    if data_dir is None:
+        data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+
+    bounds = load_bounds(data_dir)
+
+    # ---- DEAP Toolbox Setup ---- #
     toolbox = base.Toolbox()
-    
-    # Attributes generator
+
+    # Attribute generators for 2 design variables
     toolbox.register("attr_engine", random.uniform, bounds["engine"][0], bounds["engine"][1])
     toolbox.register("attr_battery", random.uniform, bounds["battery"][0], bounds["battery"][1])
-    toolbox.register("attr_motor", random.uniform, bounds["motor"][0], bounds["motor"][1])
-    
-    # Structure initializers
-    toolbox.register("individual", tools.initCycle, creator.Individual, 
-                     (toolbox.attr_engine, toolbox.attr_battery, toolbox.attr_motor), n=1)
+
+    # Individual = [engine_kw, battery_kwh]
+    toolbox.register(
+        "individual",
+        tools.initCycle,
+        creator.Individual,
+        (toolbox.attr_engine, toolbox.attr_battery),
+        n=1,
+    )
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    
-    # Operators
-    toolbox.register("evaluate", evaluate_individual, 
-                     target_speed=target_speed, 
-                     target_altitude=target_altitude, 
-                     payload_weight=payload_weight, 
-                     data_dir=data_dir, 
-                     bounds=bounds)
-    
-    # Real-valued crossover (blend)
+
+    # Evaluation function
+    toolbox.register(
+        "evaluate",
+        evaluate_individual,
+        target_speed_kmh=target_speed_kmh,
+        target_altitude=target_altitude,
+        payload_weight=payload_weight,
+        data_dir=data_dir,
+        bounds=bounds,
+    )
+
+    # Genetic operators
     toolbox.register("mate", tools.cxBlend, alpha=0.5)
-    
-    # Gaussian mutation
-    toolbox.register("mutate", tools.mutGaussian, mu=0.0, sigma=[10.0, 3.0, 8.0], indpb=0.3)
+    toolbox.register("mutate", tools.mutGaussian, mu=0.0, sigma=[8.0, 4.0], indpb=0.35)
     toolbox.register("select", tools.selTournament, tournsize=3)
 
-    # Initialize population
-    pop = toolbox.population(n=40)
+    # ---- Bound-clipping helper ---- #
+    def clip_individual(ind):
+        ind[0] = max(bounds["engine"][0], min(ind[0], bounds["engine"][1]))
+        ind[1] = max(bounds["battery"][0], min(ind[1], bounds["battery"][1]))
+
+    # ---- Initialize Population ---- #
+    pop = toolbox.population(n=pop_size)
     hof = tools.HallOfFame(1)
 
-    # Statistics
-    stats = tools.Statistics(lambda ind: ind.fitness.values[0])
-    stats.register("max", np.max)
-    stats.register("avg", np.mean)
+    # GA Hyperparameters
+    CXPB, MUTPB = 0.6, 0.35
 
-    # Clip helper to keep individuals within physical bounds
-    def clip_individual(individual):
-        individual[0] = max(bounds["engine"][0], min(individual[0], bounds["engine"][1]))
-        individual[1] = max(bounds["battery"][0], min(individual[1], bounds["battery"][1]))
-        individual[2] = max(bounds["motor"][0], min(individual[2], bounds["motor"][1]))
-
-    # Custom GA Loop to enforce boundaries post crossover/mutation
-    CXPB, MUTPB, NGEN = 0.6, 0.3, 15
-
-    # Evaluate the entire population
+    # Evaluate initial population
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
-
     hof.update(pop)
 
-    for gen in range(1, NGEN + 1):
-        # Select the next generation individuals
+    # ---- Generational Loop ---- #
+    for gen in range(1, n_gen + 1):
         offspring = toolbox.select(pop, len(pop))
         offspring = list(map(toolbox.clone, offspring))
 
-        # Apply crossover and mutation
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
+        # Crossover
+        for c1, c2 in zip(offspring[::2], offspring[1::2]):
             if random.random() < CXPB:
-                toolbox.mate(child1, child2)
-                clip_individual(child1)
-                clip_individual(child2)
-                del child1.fitness.values
-                del child2.fitness.values
+                toolbox.mate(c1, c2)
+                clip_individual(c1)
+                clip_individual(c2)
+                del c1.fitness.values
+                del c2.fitness.values
 
+        # Mutation
         for mutant in offspring:
             if random.random() < MUTPB:
                 toolbox.mutate(mutant)
                 clip_individual(mutant)
                 del mutant.fitness.values
 
-        # Evaluate the individuals with invalid fitness
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+        # Evaluate invalid individuals
+        invalid = [ind for ind in offspring if not ind.fitness.valid]
+        fitnesses = list(map(toolbox.evaluate, invalid))
+        for ind, fit in zip(invalid, fitnesses):
             ind.fitness.values = fit
 
-        # Replace population
         pop[:] = offspring
         hof.update(pop)
 
-    best_ind = hof[0]
-    best_fitness = best_ind.fitness.values[0]
-
+    # ---- Return Best ---- #
+    best = hof[0]
     return {
-        "engine_size_kw": float(best_ind[0]),
-        "battery_capacity_kwh": float(best_ind[1]),
-        "motor_size_kw": float(best_ind[2]),
-        "fitness": float(best_fitness)
+        "engine_size_kw": float(best[0]),
+        "battery_capacity_kwh": float(best[1]),
+        "fitness": float(best.fitness.values[0]),
     }
 
+
 if __name__ == "__main__":
-    print("Testing GA optimizer...")
-    result = optimize_propulsion(target_speed=45.0, target_altitude=2000.0, payload_weight=200.0)
+    print("Running GA optimizer (2-variable: engine_kw, battery_kwh)...")
+    result = optimize_propulsion(
+        target_speed_kmh=250.0,
+        target_altitude=5000.0,
+        payload_weight=200.0,
+    )
     print("Optimization complete!")
-    print(result)
+    print(f"  Engine:    {result['engine_size_kw']:.2f} kW")
+    print(f"  Battery:   {result['battery_capacity_kwh']:.2f} kWh")
+    print(f"  Endurance: {result['fitness']:.2f} hours")
