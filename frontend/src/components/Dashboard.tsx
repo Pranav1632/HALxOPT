@@ -78,6 +78,8 @@ export default function Dashboard() {
   const [targetSpeedKmh, setTargetSpeedKmh] = useState<number>(250);
   const [targetAltitude, setTargetAltitude] = useState<number>(5000);
   const [payloadWeight, setPayloadWeight] = useState<number>(200);
+  const [enableLoiter, setEnableLoiter] = useState<boolean>(true);
+  const [showMatrix, setShowMatrix] = useState<boolean>(true);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +124,7 @@ export default function Dashboard() {
           target_speed_kmh: targetSpeedKmh,
           target_altitude: targetAltitude,
           payload_weight: payloadWeight,
+          enable_loiter: enableLoiter,
         }),
       });
       if (!response.ok) {
@@ -137,7 +140,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [targetSpeedKmh, targetAltitude, payloadWeight]);
+  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter]);
 
   useEffect(() => { handleOptimize(); }, []);
 
@@ -229,7 +232,7 @@ export default function Dashboard() {
             </div>
 
             {/* Payload */}
-            <div className="mb-3">
+            <div className="mb-2.5">
               <div className="flex justify-between text-[10px] mb-0.5">
                 <span className="text-slate-400">Payload Mass</span>
                 <span className="font-mono text-emerald-400 font-bold">{payloadWeight} kg</span>
@@ -237,6 +240,16 @@ export default function Dashboard() {
               <input type="range" min="100" max="300" step="5" value={payloadWeight}
                 onChange={(e) => setPayloadWeight(parseInt(e.target.value))} disabled={loading}
                 className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
+            </div>
+
+            {/* Loiter Toggle Checkbox */}
+            <div className="flex items-center gap-2 mb-3">
+              <input type="checkbox" id="loiterToggle" checked={enableLoiter}
+                onChange={(e) => setEnableLoiter(e.target.checked)} disabled={loading}
+                className="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-emerald-500 focus:ring-emerald-500 accent-emerald-500 cursor-pointer disabled:opacity-40" />
+              <label htmlFor="loiterToggle" className="text-[10px] text-slate-400 font-medium cursor-pointer select-none">
+                Enable Loiter Phase (Orbit)
+              </label>
             </div>
 
             {/* Execute Button */}
@@ -379,7 +392,7 @@ export default function Dashboard() {
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Tab Switcher */}
-          <div className="h-8 flex-shrink-0 flex items-center border-b border-slate-800/60 bg-[#0D1117] px-2 gap-1">
+          <div className="h-8 flex-shrink-0 flex items-center border-b border-slate-800/60 bg-[#0D1117] px-2 gap-2">
             <button onClick={() => setActiveTab('3d')}
               className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors
                 ${activeTab === '3d' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
@@ -390,6 +403,13 @@ export default function Dashboard() {
                 ${activeTab === 'charts' ? 'bg-slate-800 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}>
               Telemetry Charts
             </button>
+            
+            {/* Show/Hide Telemetry Matrix Button */}
+            <button onClick={() => setShowMatrix(!showMatrix)}
+              className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition-colors ml-2">
+              {showMatrix ? 'Collapse Matrix' : 'Expand Matrix'}
+            </button>
+
             <div className="flex-1" />
             {currentPoint && (
               <span className="text-[10px] font-mono text-slate-500">
@@ -446,15 +466,17 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Right: Dense Telemetry Matrix */}
-            <div className="w-[620px] flex-shrink-0 border-l border-slate-800/60 bg-[#0D1117] flex flex-col overflow-hidden">
-              <div className="h-7 flex-shrink-0 flex items-center px-2 border-b border-slate-800/40">
-                <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em]">
-                  Propulsion Status Matrix — kW
-                </h3>
+            {/* Right: Dense Telemetry Matrix (collapsible) */}
+            {showMatrix && (
+              <div className="w-[620px] flex-shrink-0 border-l border-slate-800/60 bg-[#0D1117] flex flex-col overflow-hidden">
+                <div className="h-7 flex-shrink-0 flex items-center px-2 border-b border-slate-800/40">
+                  <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em]">
+                    Propulsion Status Matrix — kW
+                  </h3>
+                </div>
+                <TelemetryTable telemetry={telemetry} currentIndex={currentIndex} onIndexChange={(i) => { setCurrentIndex(i); setIsPlaying(false); }} />
               </div>
-              <TelemetryTable telemetry={telemetry} currentIndex={currentIndex} onIndexChange={(i) => { setCurrentIndex(i); setIsPlaying(false); }} />
-            </div>
+            )}
 
           </div>
         </div>

@@ -311,25 +311,55 @@ function AxisLabels() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tactical Space Dome & Starfield Background                         */
+/*  Terrain Wireframe Map                                              */
+/* ------------------------------------------------------------------ */
+function TerrainGrid() {
+  const geom = useMemo(() => {
+    const width = 6000;
+    const height = 240;
+    const wSegments = 120;
+    const hSegments = 20;
+    // Align plane horizontally (along X and Z)
+    const g = new THREE.PlaneGeometry(width, height, wSegments, hSegments);
+    
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      
+      // Multi-frequency sine-cosine waves for natural looking low-poly tactical hills
+      const zVal = Math.sin(x * 0.01) * Math.cos(y * 0.02) * 6 +
+                   Math.sin(x * 0.003) * 12 +
+                   Math.cos(y * 0.04) * 3;
+      pos.setZ(i, zVal);
+    }
+    g.computeVertexNormals();
+    return g;
+  }, []);
+
+  return (
+    <mesh geometry={geom} rotation={[-Math.PI / 2, 0, 0]} position={[2200, -22, 0]}>
+      <meshBasicMaterial color="#1E293B" wireframe transparent opacity={0.16} />
+    </mesh>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tactical Space Dome & Static Starfield Background                  */
 /* ------------------------------------------------------------------ */
 function TacticalBackground({ currentX }: { currentX: number }) {
   const starPositions = useMemo(() => {
     const pts: number[] = [];
-    const count = 400;
-    // Distribute points in a shell centered around the active UAV flight corridor
+    const count = 500;
+    // Generate static stars scattered along the entire flight corridor once
     for (let i = 0; i < count; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(Math.random() * 2 - 1);
-      const r = 250 + Math.random() * 150;
-      
-      const x = currentX + r * Math.sin(phi) * Math.cos(theta);
-      const y = Math.max(5, r * Math.sin(phi) * Math.sin(theta));
-      const z = r * Math.cos(phi);
+      const x = -500 + Math.random() * 5500;
+      const y = 30 + Math.random() * 220; // altitude band
+      const z = -150 + Math.random() * 300; // lateral scatter
       pts.push(x, y, z);
     }
     return new Float32Array(pts);
-  }, [currentX]);
+  }, []);
 
   return (
     <group>
@@ -344,18 +374,18 @@ function TacticalBackground({ currentX }: { currentX: number }) {
           />
         </bufferGeometry>
         <pointsMaterial
-          color="#374151"
-          size={1.5}
+          color="#4B5563"
+          size={1.3}
           sizeAttenuation={true}
           transparent
-          opacity={0.4}
+          opacity={0.5}
         />
       </points>
 
-      {/* Subtle coordinate dome overlay */}
+      {/* Subtle coordinate dome overlay following the UAV */}
       <mesh position={[currentX, 0, 0]}>
-        <sphereGeometry args={[280, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshBasicMaterial color="#1F2937" wireframe transparent opacity={0.02} />
+        <sphereGeometry args={[250, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshBasicMaterial color="#1E293B" wireframe transparent opacity={0.03} />
       </mesh>
     </group>
   );
@@ -422,11 +452,15 @@ function SceneContent({ telemetry, currentIndex }: FlightSceneProps) {
       />
 
       {/* Lighting */}
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[50, 100, 50]} intensity={0.8} color="#E5E7EB" />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight color="#1E293B" groundColor="#0F172A" intensity={0.7} />
+      <directionalLight position={[50, 100, 50]} intensity={1.5} color="#F3F4F6" />
 
       {/* Stars and space dome background centered around current position */}
       <TacticalBackground currentX={currentPos.x} />
+
+      {/* Wireframe Terrain Grid representing the landscape below the flight corridor */}
+      <TerrainGrid />
 
       {/* Ground Grid */}
       <Grid
