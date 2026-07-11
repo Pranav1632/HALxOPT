@@ -157,6 +157,20 @@ def optimize_propulsion(
         ind[1] = max(bounds["battery"][0], min(ind[1], bounds["battery"][1]))
 
     # ---- Initialize Population ---- #
+    # ---- Initialize Population ---- #
+    print(f"\n========================================================")
+    print(f"[START] INITIATING PROPULSION OPTIMIZATION LOOP")
+    print(f"========================================================")
+    print(f"  Target Cruise Speed   : {target_speed_kmh} km/h")
+    print(f"  Target Cruise Altitude: {target_altitude} m")
+    print(f"  Payload Weight        : {payload_weight} kg")
+    print(f"  Loiter Phase Enabled  : {enable_loiter}")
+    print(f"  Initial Fuel Fraction : {initial_fuel_fraction * 100:.1f}%")
+    print(f"  GA Configuration      : Pop Size = {pop_size}, Max Gen = {n_gen}")
+    print(f"  Engine Sizing Search  : {bounds['engine'][0]} kW to {bounds['engine'][1]} kW")
+    print(f"  Battery Sizing Search : {bounds['battery'][0]} kWh to {bounds['battery'][1]} kWh")
+    print(f"--------------------------------------------------------")
+
     pop = toolbox.population(n=pop_size)
     hof = tools.HallOfFame(1)
 
@@ -164,10 +178,13 @@ def optimize_propulsion(
     CXPB, MUTPB = 0.6, 0.35
 
     # Evaluate initial population
+    print("[WAIT] Evaluating initial population...")
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
     hof.update(pop)
+
+    print("[SUCCESS] Initial population evaluation complete. Starting evolution.\n")
 
     # ---- Generational Loop ---- #
     for gen in range(1, n_gen + 1):
@@ -199,13 +216,31 @@ def optimize_propulsion(
         pop[:] = offspring
         hof.update(pop)
 
+        # Generational statistics calculation
+        fits = [ind.fitness.values[0] for ind in pop]
+        best_ind = hof[0]
+        print(f"[GEN] Generation {gen:02d}/{n_gen:02d}:")
+        print(f"   * Max Fitness (Endurance): {max(fits):.3f} hours")
+        print(f"   * Min Fitness (Endurance): {min(fits):.3f} hours")
+        print(f"   * Avg Fitness (Endurance): {np.mean(fits):.3f} hours")
+        print(f"   * Current Best Candidate: Engine = {best_ind[0]:.2f} kW, Battery = {best_ind[1]:.2f} kWh")
+        print(f"--------------------------------------------------------")
+
     # ---- Return Best ---- #
     best = hof[0]
+    print(f"\n[SUCCESS] PROPULSION OPTIMIZATION CONVERGED!")
+    print(f"[BEST] Sized Architecture:")
+    print(f"   * Turboshaft Engine Size: {best[0]:.2f} kW")
+    print(f"   * Battery Capacity      : {best[1]:.2f} kWh")
+    print(f"   * Expected Endurance    : {best.fitness.values[0]:.3f} hours")
+    print(f"========================================================\n")
     return {
         "engine_size_kw": float(best[0]),
         "battery_capacity_kwh": float(best[1]),
         "fitness": float(best.fitness.values[0]),
     }
+
+
 
 
 if __name__ == "__main__":
