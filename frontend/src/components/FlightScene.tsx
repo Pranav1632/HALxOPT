@@ -46,6 +46,19 @@ function generateFlightPath(telemetry: TelemetryPoint[]): THREE.Vector3[] {
     }
   }
 
+  // Pre-scan: find descent + landing window for return-path lerp
+  let descentStartIdx = -1;
+  let landingEndIdx = -1;
+  for (let i = 0; i < telemetry.length; i++) {
+    if ((telemetry[i].phase === 'descent' || telemetry[i].phase === 'landing')) {
+      if (descentStartIdx < 0) descentStartIdx = i;
+      landingEndIdx = i;
+    }
+  }
+  const returnDuration = descentStartIdx >= 0 && landingEndIdx >= 0
+    ? Math.max(1, telemetry[landingEndIdx].time - telemetry[descentStartIdx].time)
+    : 1;
+
   // Compute loiter center X by accumulating distance to loiter start
   let loiterCenterX = 0;
   let loiterStartTime = 0;
@@ -69,10 +82,13 @@ function generateFlightPath(telemetry: TelemetryPoint[]): THREE.Vector3[] {
   const ORBIT_RADIUS_X = 20;
   const FORWARD_DRIFT = 15; // total forward distance across all orbits
 
-  // Descent tracking
-  let descentStartZ = 0;
-  let descentStartX = 0;
-  let descentCount = 0;
+  // Return lane: parallel offset from the outbound path (Z = +ORBIT_RADIUS_Z)
+  const RETURN_LANE_Z = ORBIT_RADIUS_Z;
+
+  // Descent/landing return path state (captured from last loiter point)
+  let returnStartX = 0;
+  let returnStartZ = 0;
+  let returnStartTime = 0;
 
   for (let i = 0; i < telemetry.length; i++) {
     const pt = telemetry[i];
@@ -91,17 +107,36 @@ function generateFlightPath(telemetry: TelemetryPoint[]): THREE.Vector3[] {
       const x = loiterCenterX + drift + Math.cos(theta) * ORBIT_RADIUS_X;
       const z = Math.sin(theta) * ORBIT_RADIUS_Z;
       points.push(new THREE.Vector3(x, y, z));
+
     } else if ((pt.phase === 'descent' || pt.phase === 'landing') && loiterStartIdx >= 0) {
-      // Exit orbit: decay Z toward 0 over descent, continue forward
-      descentCount++;
-      if (descentCount === 1 && points.length > 0) {
-        descentStartZ = points[points.length - 1].z;
-        descentStartX = points[points.length - 1].x;
+      // Return to origin along a parallel lane at Z = +RETURN_LANE_Z
+      if (pt.phase === 'descent' && (i === 0 || telemetry[i - 1].phase !== 'descent')) {
+        // Capture exit state from the last loiter point
+        const lastPt = points[points.length - 1];
+        returnStartX = lastPt ? lastPt.x : 0;
+        returnStartZ = lastPt ? lastPt.z : 0;
+        returnStartTime = pt.time;
       }
-      const decay = Math.max(0, 1 - descentCount * 0.03); // smooth decay
-      const x = descentStartX + cumDist * DIST_SCALE * 0.02 * descentCount;
-      const z = descentStartZ * decay;
-      points.push(new THREE.Vector3(x, y, Math.abs(z) < 0.3 ? 0 : z));
+
+      // Progress 0→1 over the entire descent+landing duration
+      const returnElapsed = pt.time - returnStartTime;
+      const tReturn = Math.min(1, returnElapsed / returnDuration);
+
+      // Cosine ease-in-out for smooth deceleration at both ends
+      const ease = (1 - Math.cos(tReturn * Math.PI)) / 2;
+
+      // X: lerp from loiter exit X back to 0 (origin)
+      const x = returnStartX * (1 - ease);
+
+      // Z: first snap to return lane (RETURN_LANE_Z), then hold it back to origin
+      // Phase 1 (0→0.15): sweep Z from loiter exit Z to RETURN_LANE_Z
+      // Phase 2 (0.15→1): hold Z = RETURN_LANE_Z while heading home
+      const zEase = Math.min(1, tReturn / 0.15);
+      const zSweep = (1 - Math.cos(zEase * Math.PI)) / 2;
+      const z = returnStartZ + (RETURN_LANE_Z - returnStartZ) * zSweep;
+
+      points.push(new THREE.Vector3(x, y, z));
+
     } else {
       // Straight line: takeoff, climb, cruise
       const x = cumDist * DIST_SCALE;

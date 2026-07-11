@@ -62,6 +62,20 @@ function downsampleIndices(total: number, maxRows: number): number[] {
 export default function TelemetryTable({ telemetry, currentIndex, onIndexChange }: TelemetryTableProps) {
   const displayIndices = useMemo(() => downsampleIndices(telemetry.length, 120), [telemetry.length]);
 
+  const closestDisplayIndex = useMemo(() => {
+    if (displayIndices.length === 0) return 0;
+    let closest = displayIndices[0];
+    let minDiff = Math.abs(closest - currentIndex);
+    for (let i = 1; i < displayIndices.length; i++) {
+      const diff = Math.abs(displayIndices[i] - currentIndex);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = displayIndices[i];
+      }
+    }
+    return closest;
+  }, [displayIndices, currentIndex]);
+
   if (!telemetry || telemetry.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs font-mono">
@@ -69,6 +83,14 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
       </div>
     );
   }
+
+  // Format seconds to hh:mm:ss
+  const formatTime = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
@@ -92,8 +114,8 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
           const pt = telemetry[idx];
           if (!pt) return null;
 
-          const isActive = idx === currentIndex;
-          const timeMin = (pt.time / 60).toFixed(1);
+          const isActive = idx === closestDisplayIndex;
+          const timeStr = formatTime(pt.time);
           const phaseColor = PHASE_COLORS[pt.phase] || 'text-slate-400';
 
           return (
@@ -106,7 +128,7 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
                   : 'text-slate-300 hover:bg-slate-800/40 border-l-2 border-l-transparent'
                 }`}
             >
-              <span className="text-center text-slate-400">{timeMin}m</span>
+              <span className="text-center text-slate-400">{timeStr}</span>
               <span className="text-right">{pt.p_aero.toFixed(1)}</span>
               <span className={`text-right ${pt.p_climb > 0.1 ? 'text-amber-300' : pt.p_climb < -0.1 ? 'text-teal-400' : ''}`}>
                 {pt.p_climb.toFixed(1)}
