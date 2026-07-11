@@ -33,8 +33,12 @@ function generateFlightPath(telemetry: TelemetryPoint[]): THREE.Vector3[] {
 
   const points: THREE.Vector3[] = [];
   let cumDist = 0;
-  const ALT_SCALE = 0.015;
-  const DIST_SCALE = 0.0008;
+  // ALT_SCALE reduced from 0.015 → 0.003 so 5000m = 15 scene units.
+  // DIST_SCALE increased from 0.0008 → 0.001.
+  // Old ratio (ALT/DIST) = 18.75 made climb look 70° vertical.
+  // New ratio = 3.0 → apparent climb angle ≈ 23°, which looks realistic.
+  const ALT_SCALE = 0.003;
+  const DIST_SCALE = 0.001;
 
   // Pre-scan: find loiter window
   let loiterStartIdx = -1;
@@ -77,13 +81,14 @@ function generateFlightPath(telemetry: TelemetryPoint[]): THREE.Vector3[] {
   }
 
   // Racetrack parameters: exactly 3 orbits, drifting forward
+  // Radii scaled down from 12/20 → 6/10 to match the reduced ALT_SCALE
   const NUM_ORBITS = 3;
-  const ORBIT_RADIUS_Z = 12;
-  const ORBIT_RADIUS_X = 20;
-  const FORWARD_DRIFT = 15; // total forward distance across all orbits
+  const ORBIT_RADIUS_Z = 6;
+  const ORBIT_RADIUS_X = 10;
+  const FORWARD_DRIFT = 8; // total forward distance across all orbits
 
-  // Return lane: parallel offset from the outbound path (Z = +ORBIT_RADIUS_Z)
-  const RETURN_LANE_Z = ORBIT_RADIUS_Z;
+  // Return lane parallel to outbound path — same Z offset as orbit radius
+  const RETURN_LANE_Z = ORBIT_RADIUS_Z; // = 6 scene units
 
   // Descent/landing return path state (captured from last loiter point)
   let returnStartX = 0;
@@ -196,7 +201,7 @@ function PhaseMarkers({ telemetry, flightPath }: { telemetry: TelemetryPoint[]; 
         <group key={i} position={m.position}>
           {/* Small sphere at waypoint */}
           <mesh>
-            <sphereGeometry args={[0.8, 8, 8]} />
+            <sphereGeometry args={[0.5, 8, 8]} />
             <meshStandardMaterial
               color={phaseColors[m.phase] || '#9CA3AF'}
               emissive={phaseColors[m.phase] || '#9CA3AF'}
@@ -205,7 +210,7 @@ function PhaseMarkers({ telemetry, flightPath }: { telemetry: TelemetryPoint[]; 
           </mesh>
           {/* Phase label */}
           <Html
-            position={[0, 3.5, 0]}
+            position={[0, 2.0, 0]}
             center
             style={{ pointerEvents: 'none' }}
           >
@@ -264,7 +269,7 @@ function UAVMarker({ position, nextPosition, telemetryPt }: {
       {/* HUD Label floating above UAV */}
       {telemetryPt && (
         <Html
-          position={[position.x, position.y + 6, position.z]}
+          position={[position.x, position.y + 3, position.z]}
           center
           style={{ pointerEvents: 'none' }}
         >
@@ -373,7 +378,7 @@ function TerrainGrid() {
   }, []);
 
   return (
-    <mesh geometry={geom} rotation={[-Math.PI / 2, 0, 0]} position={[2200, -22, 0]}>
+    <mesh geometry={geom} rotation={[-Math.PI / 2, 0, 0]} position={[2500, -6, 0]}>
       <meshBasicMaterial color="#1E293B" wireframe transparent opacity={0.16} />
     </mesh>
   );
@@ -388,8 +393,8 @@ function TacticalBackground({ currentX }: { currentX: number }) {
     const count = 500;
     // Generate static stars scattered along the entire flight corridor once
     for (let i = 0; i < count; i++) {
-      const x = -500 + Math.random() * 5500;
-      const y = 30 + Math.random() * 220; // altitude band
+      const x = -500 + Math.random() * 8000; // wider corridor
+      const y = 18 + Math.random() * 80;  // lowered: was 30+220, cruise is now at y=15
       const z = -150 + Math.random() * 300; // lateral scatter
       pts.push(x, y, z);
     }
@@ -467,7 +472,9 @@ function SceneContent({ telemetry, currentIndex }: FlightSceneProps) {
 
   return (
     <>
-      <OrthographicCamera makeDefault position={[100, 100, 100]} zoom={3.0} near={0.1} far={3000} />
+      {/* Camera moved to [120, 45, 130]: lower elevation gives side-profile view.
+           Zoom increased 3→6 to compensate for the smaller vertical scale (15 vs 75 units). */}
+      <OrthographicCamera makeDefault position={[120, 45, 130]} zoom={6.0} near={0.1} far={8000} />
 
       {/* Orbit controls — gentle tilt/pan, open vertical rotation range */}
       <OrbitControls
@@ -478,8 +485,8 @@ function SceneContent({ telemetry, currentIndex }: FlightSceneProps) {
         panSpeed={0.6}
         enableZoom
         zoomSpeed={0.8}
-        minZoom={1.2}
-        maxZoom={12}
+        minZoom={0.8}
+        maxZoom={20}
         minPolarAngle={Math.PI / 18}   /* 10° — allows viewing from almost side-on profile */
         maxPolarAngle={Math.PI / 2.15} /* 83° — prevents rotating below the ground plane */
         enableRotate

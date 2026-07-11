@@ -412,11 +412,14 @@ class UAVHybridEnv(gym.Env):
             self.speed = max(loiter_speed, 1.2 * v_stall)
             climb_rate = 0.0
         elif self.current_phase == self.PHASE_DESCENT:
+            # Realistic idle descent: ~-1.5 m/s (~295 fpm) glide-idle approach
+            # At -3.0 m/s the UAV plummeted from 5000m in only 28 min — unrealistic for a 1-tonne airframe
             self.speed = max(1.2 * v_stall, 30.0)
-            climb_rate = -3.0
+            climb_rate = -1.5
         elif self.current_phase == self.PHASE_LANDING:
+            # Shallow final approach: ~-0.8 m/s (~158 fpm) stable glideslope
             self.speed = max(1.1 * v_stall, 22.0)
-            climb_rate = -2.0
+            climb_rate = -0.8
         else:
             self.speed = 0.0
             climb_rate = 0.0
@@ -491,7 +494,13 @@ class UAVHybridEnv(gym.Env):
         self.time_elapsed += dt
 
         # Log telemetry
-        actual_psr = p_motor / p_req_kw if p_req_kw > 0 else 0.0
+        # PSR = fraction of total power delivered by the electric motor.
+        # When p_req == 0 (descent/landing: gliding idle, no thrust needed),
+        # PSR is physically undefined — log 0.0 to avoid showing spurious 50% in the dashboard.
+        if p_req_kw > 0:
+            actual_psr = min(1.0, max(0.0, p_motor / p_req_kw))
+        else:
+            actual_psr = 0.0
         self._log_telemetry(actual_psr, p_req_kw, p_motor, p_engine, p_delivered, p_deficit,
                             p_aero=p_aero_kw, p_climb=p_climb_kw, climb_rate=climb_rate)
 
