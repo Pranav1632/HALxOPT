@@ -117,18 +117,21 @@ export default function TelemetryChart({ telemetry }: TelemetryChartProps) {
                 mode: 'lines',
                 fill: 'tozeroy',
                 fillcolor: 'rgba(59, 130, 246, 0.25)', // transparent blue
-                line: { color: '#3b82f6', width: 2 }
+                line: { color: '#3b82f6', width: 2 },
+                hovertemplate: '%{y:.3f} kW<extra></extra>'
               },
               // Area 2: Electric Motor (Stacked)
               {
                 x: timeMinutes,
                 y: pStackedMotor,
+                text: pMotor.map(v => v.toFixed(3)),
                 name: 'Electric Motor Power (kW)',
                 type: 'scatter',
                 mode: 'lines',
                 fill: 'tonexty', // Fill between engine and engine+motor
                 fillcolor: 'rgba(16, 185, 129, 0.25)', // transparent emerald
-                line: { color: '#10b981', width: 2 }
+                line: { color: '#10b981', width: 2 },
+                hovertemplate: '%{text} kW<extra></extra>'
               },
               // Line: Power Required Reference
               {
@@ -137,7 +140,8 @@ export default function TelemetryChart({ telemetry }: TelemetryChartProps) {
                 name: 'Total Power Required (kW)',
                 type: 'scatter',
                 mode: 'lines',
-                line: { color: '#f43f5e', width: 2, dash: 'dash' }
+                line: { color: '#f43f5e', width: 2, dash: 'dash' },
+                hovertemplate: '%{y:.3f} kW<extra></extra>'
               }
             ]}
             layout={{
