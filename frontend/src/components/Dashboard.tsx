@@ -51,22 +51,22 @@ function fmtTime(sec: number): string {
 }
 
 const PHASE_BADGE: Record<string, string> = {
-  takeoff:   'bg-red-900/60 text-red-300 border-red-700/40',
-  climb:     'bg-amber-900/60 text-amber-300 border-amber-700/40',
-  cruise:    'bg-cyan-900/60 text-cyan-300 border-cyan-700/40',
-  loiter:    'bg-violet-900/60 text-violet-300 border-violet-700/40',
-  descent:   'bg-teal-900/60 text-teal-300 border-teal-700/40',
-  landing:   'bg-emerald-900/60 text-emerald-300 border-emerald-700/40',
+  takeoff: 'bg-red-900/60 text-red-300 border-red-700/40',
+  climb: 'bg-amber-900/60 text-amber-300 border-amber-700/40',
+  cruise: 'bg-cyan-900/60 text-cyan-300 border-cyan-700/40',
+  loiter: 'bg-violet-900/60 text-violet-300 border-violet-700/40',
+  descent: 'bg-teal-900/60 text-teal-300 border-teal-700/40',
+  landing: 'bg-emerald-900/60 text-emerald-300 border-emerald-700/40',
   completed: 'bg-slate-800/60 text-slate-400 border-slate-700/40',
 };
 
 const PHASE_GLOW: Record<string, string> = {
-  takeoff:   'shadow-[0_0_8px_rgba(248,113,113,0.4)]',
-  climb:     'shadow-[0_0_8px_rgba(251,191,36,0.4)]',
-  cruise:    'shadow-[0_0_8px_rgba(34,211,238,0.4)]',
-  loiter:    'shadow-[0_0_8px_rgba(167,139,250,0.4)]',
-  descent:   'shadow-[0_0_8px_rgba(45,212,191,0.4)]',
-  landing:   'shadow-[0_0_8px_rgba(52,211,153,0.4)]',
+  takeoff: 'shadow-[0_0_8px_rgba(248,113,113,0.4)]',
+  climb: 'shadow-[0_0_8px_rgba(251,191,36,0.4)]',
+  cruise: 'shadow-[0_0_8px_rgba(34,211,238,0.4)]',
+  loiter: 'shadow-[0_0_8px_rgba(167,139,250,0.4)]',
+  descent: 'shadow-[0_0_8px_rgba(45,212,191,0.4)]',
+  landing: 'shadow-[0_0_8px_rgba(52,211,153,0.4)]',
   completed: '',
 };
 
@@ -75,7 +75,7 @@ function HalLogo() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="1.5" strokeLinejoin="round">
       <polygon points="12 2 21.39 7 21.39 17 12 22 2.61 17 2.61 7" />
-      <polygon points="12 6 17.5 9 17.5 15 12 18 6.5 15 6.5 9" opacity="0.4"/>
+      <polygon points="12 6 17.5 9 17.5 15 12 18 6.5 15 6.5 9" opacity="0.4" />
     </svg>
   );
 }
@@ -459,11 +459,10 @@ export default function Dashboard() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-3 pb-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider transition-all relative border-b-2 ${
-                  activeTab === tab
+                className={`px-3 pb-1.5 pt-1 text-[10px] font-bold uppercase tracking-wider transition-all relative border-b-2 ${activeTab === tab
                     ? 'border-b-emerald-500 text-emerald-400'
                     : 'border-b-transparent text-slate-500 hover:text-slate-300'
-                }`}
+                  }`}
               >
                 {tab === '3d' ? '3D Flight Profile' : 'Telemetry Charts'}
               </button>
