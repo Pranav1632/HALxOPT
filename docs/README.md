@@ -1,13 +1,18 @@
 # AeroOptima Technical Documentation
 ## AEROTHON 2026 — Team HAL × IIT Indore
 
-This directory contains the complete technical reports, slides content, mathematical formulations, battery recommendations, RL architecture audits, GA refactoring blueprints, and CPU hardware training paths compiled for the **AEROTHON 2026** competition.
+This directory contains the complete technical reports, slides content, mathematical formulations, battery recommendations, RL architecture audits, GA refactoring blueprints, CPU hardware training paths, and master planning documents compiled for the **AEROTHON 2026** competition.
 
 ### Directory Structure
 
 ```
 docs/
 ├── README.md                          # Main documentation index
+├── project_plan/                      # End-to-end masterplan & phase roadmaps
+│   ├── README.md                      # Index of planning deliverables
+│   ├── end_to_end_project_masterplan.md # Architectural vision & 5-phase breakdown
+│   └── phase_implementation_roadmap.md # Technical equations & milestone roadmap
+│
 ├── aerospace_physics/                 # Physics models and formulations
 │   ├── README.md                      # Index of physics documents
 │   ├── aerospace_engineering_report.md# High-altitude flight physics & topologies
