@@ -1,7 +1,7 @@
 # AeroOptima Technical Documentation
 ## AEROTHON 2026 — Team HAL × IIT Indore
 
-This directory contains the complete technical reports, slides content, mathematical formulations, and engineering analyses compiled for the **AEROTHON 2026** competition.
+This directory contains the complete technical reports, slides content, mathematical formulations, battery recommendations, and RL architecture audits compiled for the **AEROTHON 2026** competition.
 
 ### Directory Structure
 
@@ -15,8 +15,10 @@ docs/
 │   ├── formula_sheet.md               # Governing formulas & integrations
 │   └── silent_loiter_analysis.md      # Aerodynamic power & loiter drain math
 │
-├── project_analysis/                  # Assessments and validation
+├── project_analysis/                  # Assessments, RL audit, & recommendations
 │   ├── README.md                      # Index of validation documents
+│   ├── component_and_battery_recommendations.md # SOTA component matrix & 800V bus
+│   ├── reinforcement_learning_and_ai_innovations.md # RL safety & disturbance control
 │   ├── project_evaluation_report.md   # AI structure, weight fractions, completeness
 │   └── realism_gap_analysis.md        # Physical limitations vs perfect reality
 │
