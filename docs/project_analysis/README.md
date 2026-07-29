@@ -1,14 +1,15 @@
 # Project Validation, RL Analysis & Recommendations Index
 ## AEROTHON 2026 — Team HAL × IIT Indore
 
-This directory documents the critical assessments, validation reports, reinforcement learning audits, CPU hardware training paths, and component recommendations of the AeroOptima project against real-world physical and operational targets.
+This directory documents the critical assessments, validation reports, reinforcement learning audits, CPU hardware training paths, data insertion pipelines, and component recommendations of the AeroOptima project against real-world physical and operational targets.
 
 ### Contents:
-1. **[rl_training_hardware_roadmap.md](file:///d:/project/HAL/docs/project_analysis/rl_training_hardware_roadmap.md)**: CPU vs GPU hardware analysis, PyTorch CPU optimization, parallel multiprocessing (`SubprocVecEnv`), and step-by-step training script & FastAPI serving path.
-2. **[component_and_battery_recommendations.md](file:///d:/project/HAL/docs/project_analysis/component_and_battery_recommendations.md)**: Breakdown of battery mass budgets across capacities, 800V DC high-voltage architecture benefits, and SOTA component recommendations.
-3. **[reinforcement_learning_and_ai_innovations.md](file:///d:/project/HAL/docs/project_analysis/reinforcement_learning_and_ai_innovations.md)**: Deep-dive audit of RL implementation in the codebase, safety uses during environmental wind/pressure disturbances, and 4 innovative AI solutions (PINNs, RL-MPC, Surrogate GA, PHM).
-4. **[realism_gap_analysis.md](file:///d:/project/HAL/docs/project_analysis/realism_gap_analysis.md)**: Details the critical discrepancies between still-air Sea Level math and high-altitude Himalayan missions (including engine lapses and battery cold-derating).
-5. **[project_evaluation_report.md](file:///d:/project/HAL/docs/project_analysis/project_evaluation_report.md)**: Resolves design-integrity questions regarding AI framework classifications (GA vs RL), functional completeness, and component weight fraction realism.
+1. **[rl_testing_and_data_flow_guide.md](file:///d:/project/HAL/docs/project_analysis/rl_testing_and_data_flow_guide.md)**: Details the 5D observation data vector, real-time closed-loop data insertion, PSR output actions, complete `test_rl.py` script, and benchmark verification metrics.
+2. **[rl_training_hardware_roadmap.md](file:///d:/project/HAL/docs/project_analysis/rl_training_hardware_roadmap.md)**: CPU vs GPU hardware analysis, PyTorch CPU optimization, parallel multiprocessing (`SubprocVecEnv`), and step-by-step training script & FastAPI serving path.
+3. **[component_and_battery_recommendations.md](file:///d:/project/HAL/docs/project_analysis/component_and_battery_recommendations.md)**: Breakdown of battery mass budgets across capacities, 800V DC high-voltage architecture benefits, and SOTA component recommendations.
+4. **[reinforcement_learning_and_ai_innovations.md](file:///d:/project/HAL/docs/project_analysis/reinforcement_learning_and_ai_innovations.md)**: Deep-dive audit of RL implementation in the codebase, safety uses during environmental wind/pressure disturbances, and 4 innovative AI solutions (PINNs, RL-MPC, Surrogate GA, PHM).
+5. **[realism_gap_analysis.md](file:///d:/project/HAL/docs/project_analysis/realism_gap_analysis.md)**: Details the critical discrepancies between still-air Sea Level math and high-altitude Himalayan missions (including engine lapses and battery cold-derating).
+6. **[project_evaluation_report.md](file:///d:/project/HAL/docs/project_analysis/project_evaluation_report.md)**: Resolves design-integrity questions regarding AI framework classifications (GA vs RL), functional completeness, and component weight fraction realism.
 
 ### Sizing Benchmarks & Accuracy:
 - **Empty Weight Fraction:** Sized at `0.45`, matching composite industry norms.

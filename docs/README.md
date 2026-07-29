@@ -17,6 +17,7 @@ docs/
 │
 ├── project_analysis/                  # Assessments, RL audit, & recommendations
 │   ├── README.md                      # Index of validation documents
+│   ├── rl_testing_and_data_flow_guide.md # 5D data vector, insertion loop & test_rl.py
 │   ├── rl_training_hardware_roadmap.md # CPU vs GPU training roadmap & FastAPI path
 │   ├── component_and_battery_recommendations.md # SOTA component matrix & 800V bus
 │   ├── reinforcement_learning_and_ai_innovations.md # RL safety & disturbance control
