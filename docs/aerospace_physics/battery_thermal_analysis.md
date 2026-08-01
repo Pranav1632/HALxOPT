@@ -12,8 +12,8 @@ In high-end hybrid-electric UAVs, your intuition is **partially correct**: moder
 However, in actual aerospace mission operations (especially in high-altitude environments like Leh-Ladakh at $-20^\circ\text{C}$ to $-35^\circ\text{C}$), battery cold penalties remain a critical design constraint for **4 major reasons**:
 
 ```
-                              MISSION PHASES & THERMAL DYNAMICS
-                              
+                               MISSION PHASES & THERMAL DYNAMICS
+                               
 ┌─────────────────────────┐   ┌─────────────────────────┐   ┌─────────────────────────┐
 │ Phase 1: Cold Soak      │   │ Phase 2: Hybrid Climb   │   │ Phase 3: Stealth Loiter │
 │ (Ground / Launch)       │   │ (Max C-Rate Discharge)  │   │ (ICE OFF / Silent Drive)│
@@ -33,11 +33,11 @@ However, in actual aerospace mission operations (especially in high-altitude env
 Before launch, the UAV sits on the tarmac at high elevation (e.g., Nyoma Airstrip at 13,700 ft ASL, ambient temp $-25^\circ\text{C}$). 
 * The engine has not been running long enough to establish a stabilized $80^\circ\text{C}$ coolant loop.
 * The battery cells are in a **Cold-Soak state**.
-* If a hybrid takeoff demands instant 50+ kW electric boost from the motor, the cold battery's internal resistance ($R_{int}$) causes severe **Voltage Sag**:
+* If a hybrid takeoff demands instant 50+ kW electric boost from the motor, the cold battery's internal resistance ($R_{\mathrm{int}}$) causes severe **Voltage Sag**:
 
-$$V_{\text{terminal}} = V_{\text{OC}} - I \cdot R_{\text{int}}(T)$$
+$$V_{\mathrm{terminal}} = V_{\mathrm{OC}} - I \cdot R_{\mathrm{int}}(T)$$
 
-Where at $-25^\circ\text{C}$, $R_{\text{int}}$ can be **300% to 500% higher** than at $25^\circ\text{C}$. This risks hitting the Low-Voltage Cutoff ($V_{\text{min}}$) instantly, tripping BMS safety shutoffs during takeoff!
+Where at $-25^\circ\text{C}$, $R_{\mathrm{int}}$ can be **300% to 500% higher** than at $25^\circ\text{C}$. This risks hitting the Low-Voltage Cutoff ($V_{\mathrm{min}}$) instantly, tripping BMS safety shutoffs during takeoff!
 
 ---
 
@@ -63,8 +63,10 @@ During the high-power Climb phase, the problem flips from **cold** to **overheat
 
 ### Key Reason 4: Mass & Parasitic Power Trade-Off
 An active Thermal Management System (TMS) isn't free:
-$$\text{Weight}_{\text{TMS}} = \text{Pump} + \text{Radiator} + \text{Coolant Fluid} + \text{Aerogel Insulation} \approx 25 - 40 \text{ kg}$$
-$$\text{Power}_{\text{parasitic}} = P_{\text{pump}} + P_{\text{heater}} \approx 300\text{W} - 1.2\text{kW}$$
+
+$$\text{Weight}_{\mathrm{TMS}} = \text{Pump} + \text{Radiator} + \text{Coolant Fluid} + \text{Aerogel Insulation} \approx 25 \text{ to } 40\text{ kg}$$
+
+$$\text{Power}_{\mathrm{parasitic}} = P_{\mathrm{pump}} + P_{\mathrm{heater}} \approx 300\text{ W to } 1.2\text{ kW}$$
 
 This added weight directly reduces the **Fuel Mass Budget**, which reduces total cruise endurance.
 
