@@ -19,11 +19,11 @@ Imagine a cargo truck: it has a structural limit where adding one extra kilogram
 #### 📐 Theoretical Physics & Equations
 MTOW is the top-level mass budget equation ($W_0$):
 
-$$W_0 = W_{\text{airframe}} + W_{\text{engine}} + W_{\text{motor}} + W_{\text{battery}} + W_{\text{payload}} + W_{\text{fuel}} \le \text{MTOW}$$
+$$W_0 = W_{\mathrm{airframe}} + W_{\mathrm{engine}} + W_{\mathrm{motor}} + W_{\mathrm{battery}} + W_{\mathrm{payload}} + W_{\mathrm{fuel}} \le \text{MTOW}$$
 
 In our 1,000 kg MTOW class fixed-wing UAV ($9,810\text{ N}$ weight force at sea level):
 
-$$\text{Empty Weight Fraction } \left(\frac{W_e}{W_0}\right) = \frac{W_{\text{airframe}} + W_{\text{propulsion}}}{W_0} = \frac{350 + (35 + 12.3 + 80)}{1000} = 0.477 \quad \text{(47.7\%)}$$
+$$\text{Empty Weight Fraction } \left(\frac{W_e}{W_0}\right) = \frac{W_{\mathrm{airframe}} + W_{\mathrm{propulsion}}}{W_0} = \frac{350 + (35 + 12.3 + 80)}{1000} = 0.477 \quad \text{(47.7\%)}$$
 
 > [!NOTE]
 > **Why This Matters in Code:** In `backend/environment.py` (L97–111), the fuel capacity is computed dynamically as the *remaining mass budget* after subtracting airframe, engine, motor, battery, and payload. If component weights exceed MTOW, `fuel_initial <= 0`, causing an immediate simulation termination!
@@ -72,16 +72,16 @@ $$\rho(h) = \rho_0 \left(1.0 - 2.25577 \times 10^{-5} \cdot h\right)^{4.25588}$$
 #### 📐 Theoretical Physics & Equations
 Dynamic pressure equation:
 
-$$\text{Dynamic Pressure } q = \frac{1}{2} \rho_0 V_{\text{IAS}}^2 = \frac{1}{2} \rho(h) V_{\text{TAS}}^2$$
+$$\text{Dynamic Pressure } q = \frac{1}{2} \rho_0 V_{\mathrm{IAS}}^2 = \frac{1}{2} \rho(h) V_{\mathrm{TAS}}^2$$
 
-Solving for True Airspeed ($V_{\text{TAS}}$) as a function of density ratio $\sigma = \frac{\rho(h)}{\rho_0}$:
+Solving for True Airspeed ($V_{\mathrm{TAS}}$) as a function of density ratio $\sigma = \frac{\rho(h)}{\rho_0}$:
 
-$$V_{\text{TAS}} = \frac{V_{\text{IAS}}}{\sqrt{\sigma}}$$
+$$V_{\mathrm{TAS}} = \frac{V_{\mathrm{IAS}}}{\sqrt{\sigma}}$$
 
 **Concrete Numerical Example:**
 If your UAV needs an IAS of $53.5\text{ m/s}$ ($192.6\text{ km/h}$) to prevent stall:
-- At **Sea Level** ($\sigma = 1.0$): $V_{\text{TAS}} = 53.5\text{ m/s}$ ($192.6\text{ km/h}$).
-- At **5,000m Altitude** ($\sigma = 0.601$): $V_{\text{TAS}} = \frac{53.5}{\sqrt{0.601}} = 69.0\text{ m/s}$ (**$248.5\text{ km/h}$**).
+- At **Sea Level** ($\sigma = 1.0$): $V_{\mathrm{TAS}} = 53.5\text{ m/s}$ ($192.6\text{ km/h}$).
+- At **5,000m Altitude** ($\sigma = 0.601$): $V_{\mathrm{TAS}} = \frac{53.5}{\sqrt{0.601}} = 69.0\text{ m/s}$ (**$248.5\text{ km/h}$**).
 
 ---
 
@@ -118,7 +118,7 @@ Where:
 ```
 
 > [!NOTE]
-> **Code Linkage:** Implemented in `backend/environment.py` L206–234 (`_compute_power_required`). Aerodynamic power required is calculated as $P_{\text{aero}} = \frac{1}{2} \rho V^3 S C_D$.
+> **Code Linkage:** Implemented in `backend/environment.py` L206–234 (`_compute_power_required`). Aerodynamic power required is calculated as $P_{\mathrm{aero}} = \frac{1}{2} \rho V^3 S C_D$.
 
 ---
 
@@ -130,19 +130,19 @@ Think of a sports car engine: it gets great fuel efficiency when cruising smooth
 #### 📐 Theoretical Physics & Equations
 Specific Fuel Consumption (SFC) measures mass of fuel burned per kilowatt-hour of shaft work:
 
-$$\text{SFC} = \frac{\dot{m}_{\text{fuel}}}{P_{\text{engine}}} \quad \left[\frac{\text{kg}}{\text{kW}\cdot\text{h}}\right]$$
+$$\text{SFC} = \frac{\dot{m}_{\mathrm{fuel}}}{P_{\mathrm{engine}}} \quad \left[\frac{\text{kg}}{\text{kW}\cdot\text{h}}\right]$$
 
 In `backend/environment.py` (L238–255), we apply a **piecewise partial-load SFC penalty model**:
 
-$$\text{SFC}_{\text{effective}}(L_f) = \begin{cases} 
-\text{SFC}_{\text{base}}, & L_f \ge 0.80 \\
-\text{SFC}_{\text{base}} \cdot \left(1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right), & 0.50 \le L_f < 0.80 \\
-\text{SFC}_{\text{base}} \cdot \left(1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right), & L_f < 0.50
+$$\text{SFC}_{\mathrm{effective}}(L_f) = \begin{cases} 
+\text{SFC}_{\mathrm{base}}, & L_f \ge 0.80 \\
+\text{SFC}_{\mathrm{base}} \cdot \left(1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right), & 0.50 \le L_f < 0.80 \\
+\text{SFC}_{\mathrm{base}} \cdot \left(1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right), & L_f < 0.50
 \end{cases}$$
 
-Where load fraction $L_f = \frac{P_{\text{engine}}}{P_{\text{engine, continuous}}}$.
+Where load fraction $L_f = \frac{P_{\mathrm{engine}}}{P_{\mathrm{engine, continuous}}}$.
 
-- **Optimal Efficiency Zone ($L_f \ge 0.80$):** Nominal fuel burn rate ($\text{SFC}_{\text{base}} = 0.38\text{ kg/kWh}$).
+- **Optimal Efficiency Zone ($L_f \ge 0.80$):** Nominal fuel burn rate ($\text{SFC}_{\mathrm{base}} = 0.38\text{ kg/kWh}$).
 - **Mild Penalty Zone ($0.50 \le L_f < 0.80$):** Up to +15% fuel penalty due to partial throttle restriction.
 - **Heavy Penalty Zone ($L_f < 0.50$):** Up to +40% heavy fuel penalty due to deep underloading.
 
@@ -158,19 +158,20 @@ Where load fraction $L_f = \frac{P_{\text{engine}}}{P_{\text{engine, continuous}
 How do you find the best engine size and battery size out of millions of combinations without guessing blindly? You use a **Genetic Algorithm (GA)**! Inspired by biological evolution (Darwinian survival of the fittest), the GA creates a "population" of 40 candidate UAV designs. It tests each candidate in a flight simulator, picks the best ones, and "breeds" them together to create stronger offspring over 15 generations.
 
 #### 📐 Mathematical & Algorithmic Formulation
-- **Individual (Chromosome):** A vector of 2 continuous design variables:
 
-  $$\vec{x} = \left[ P_{\text{engine}} \ (\text{kW}), \ E_{\text{battery}} \ (\text{kWh}) \right]$$
+**Individual (Chromosome) — Vector of 2 continuous design variables:**
 
-  Search bounds: $P_{\text{engine}} \in [30.0, 120.0]\text{ kW}$, $E_{\text{battery}} \in [5.0, 50.0]\text{ kWh}$.
+$$\vec{x} = \left[ P_{\mathrm{engine}} \ (\mathrm{kW}), \ E_{\mathrm{battery}} \ (\mathrm{kWh}) \right]$$
 
-- **Fitness Function:** Total simulated mission flight endurance in hours:
+Search bounds: $P_{\mathrm{engine}} \in [30.0, 120.0]\mathrm{kW}$, $E_{\mathrm{battery}} \in [5.0, 50.0]\mathrm{kWh}$.
 
-  $$\mathcal{F}(\vec{x}) = \text{Simulated Endurance (Hours)} \times \text{Mission Completion Penalty Factor}$$
+**Fitness Function — Total simulated mission flight endurance in hours:**
 
-- **Genetic Operators (DEAP Framework):**
-  - **Crossover (`cxBlend`, $\alpha=0.5$):** Blends parent variables: $x_{\text{child}} = (1-\gamma)x_1 + \gamma x_2$.
-  - **Mutation (`mutGaussian`, $\mu=0, \sigma=[8.0, 4.0]$):** Adds random Gaussian noise to prevent getting stuck in local optima.
+$$\mathcal{F}(\vec{x}) = \mathrm{Simulated\_Endurance\_Hours} \times \mathrm{Penalty\_Factor}$$
+
+**Genetic Operators (DEAP Framework):**
+- **Crossover (`cxBlend`, $\alpha=0.5$):** Blends parent variables: $x_{\mathrm{child}} = (1-\gamma)x_1 + \gamma x_2$.
+- **Mutation (`mutGaussian`, $\mu=0, \sigma=[8.0, 4.0]$):** Adds random Gaussian noise to prevent getting stuck in local optima.
 
 ```
                     OUTER-LOOP GENETIC ALGORITHM WORKFLOW
@@ -206,7 +207,7 @@ $$\max_{\vec{x}} \vec{f}(\vec{x}) = \left[ f_1(\vec{x}), f_2(\vec{x}), f_3(\vec{
 
 1. **$f_1(\vec{x})$:** Maximize Flight Endurance (Hours)
 2. **$f_2(\vec{x})$:** Minimize Thermal IR Signature (Engine power usage fraction)
-3. **$f_3(\vec{x})$:** Minimize Propulsion Mass ($m_{\text{engine}} + m_{\text{battery}}$)
+3. **$f_3(\vec{x})$:** Minimize Propulsion Mass ($m_{\mathrm{engine}} + m_{\mathrm{battery}}$)
 
 A design $\vec{x}_A$ **dominates** $\vec{x}_B$ if $\vec{x}_A$ is no worse than $\vec{x}_B$ in all objectives, and strictly better in at least one.
 
@@ -223,21 +224,21 @@ Reinforcement Learning (RL) is like training a pilot in a simulator by giving po
 
 #### 📐 Mathematical 5-Tuple Formulation $(S, A, P, R, \gamma)$
 
-1. **State Space ($S \in \mathbb{R}^9$):** 9D Observation Vector:
+**1. State Space ($S \in \mathbb{R}^9$) — 9D Observation Vector:**
 
-   $$\vec{s}_t = \left[ h, V_{\text{TAS}}, \text{SoC}, \frac{m_{\text{fuel}}}{m_{\text{fuel,init}}}, P_{\text{req}}, \frac{P_{\text{engine}}}{P_{\text{cont}}}, \rho(h), t, \text{Phase ID} \right]$$
+$$\vec{s}_{t} = \left[ h, V_{\mathrm{TAS}}, \mathrm{SoC}, \frac{m_{\mathrm{fuel}}}{m_{\mathrm{fuel,init}}}, P_{\mathrm{req}}, \frac{P_{\mathrm{engine}}}{P_{\mathrm{cont}}}, \rho(h), t, \mathrm{Phase\_ID} \right]$$
 
-2. **Action Space ($A \in [0.0, 1.0]$):** Continuous Power Split Ratio (PSR):
+**2. Action Space ($A \in [0.0, 1.0]$) — Continuous Power Split Ratio (PSR):**
 
-   $$\text{PSR} = \frac{P_{\text{motor}}}{P_{\text{req}}}$$
+$$\text{PSR} = \frac{P_{\mathrm{motor}}}{P_{\mathrm{req}}}$$
 
-   - **PSR = 0.0:** 100% Turboshaft Engine Drive (Cruise flight phase)
-   - **PSR = 0.5:** 50% Engine + 50% Motor (Sustained climb phase)
-   - **PSR = 1.0:** 100% Electric Drive (Silent stealth loiter phase)
+- **PSR = 0.0:** 100% Turboshaft Engine Drive (Cruise flight phase)
+- **PSR = 0.5:** 50% Engine + 50% Motor (Sustained climb phase)
+- **PSR = 1.0:** 100% Electric Drive (Silent stealth loiter phase)
 
-3. **Dense Reward Function ($R_t$):**
+**3. Dense Reward Function ($R_t$):**
 
-   $$R_t = R_{\text{phase}} + 0.5 \cdot \eta_{\text{SFC}} + 0.2 \cdot \text{SoC} - 10.0 \cdot P_{\text{deficit}} - 500.0 \cdot \text{Penalty}_{\text{stall}}$$
+$$R_t = R_{\mathrm{phase}} + 0.5 \cdot \eta_{\mathrm{SFC}} + 0.2 \cdot \mathrm{SoC} - 10.0 \cdot P_{\mathrm{deficit}} - 500.0 \cdot \text{StallPenalty}$$
 
 ---
 
