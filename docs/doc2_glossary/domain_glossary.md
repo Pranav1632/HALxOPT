@@ -39,9 +39,11 @@ As you climb up a mountain like Mount Everest or Siachen, the air gets "thinner"
 At Standard Sea-Level (SSL), air density is $\rho_0 = 1.225\text{ kg/m}^3$ and temperature is $T_0 = 288.15\text{ K}$ ($15^\circ\text{C}$).
 
 In the **Troposphere** (from 0 m up to $11,000\text{ m}$ altitude), temperature drops linearly at a lapse rate $L = 0.0065\text{ K/m}$:
+
 $$T(h) = T_0 - L \cdot h$$
 
 Air density drops exponentially according to the standard barometric formula:
+
 $$\rho(h) = \rho_0 \left(1.0 - 2.25577 \times 10^{-5} \cdot h\right)^{4.25588}$$
 
 ```
@@ -68,9 +70,12 @@ $$\rho(h) = \rho_0 \left(1.0 - 2.25577 \times 10^{-5} \cdot h\right)^{4.25588}$$
 * **Groundspeed (GS):** True Airspeed plus or minus headwind/tailwind.
 
 #### 📐 Theoretical Physics & Equations
+Dynamic pressure equation:
+
 $$\text{Dynamic Pressure } q = \frac{1}{2} \rho_0 V_{\text{IAS}}^2 = \frac{1}{2} \rho(h) V_{\text{TAS}}^2$$
 
 Solving for True Airspeed ($V_{\text{TAS}}$) as a function of density ratio $\sigma = \frac{\rho(h)}{\rho_0}$:
+
 $$V_{\text{TAS}} = \frac{V_{\text{IAS}}}{\sqrt{\sigma}}$$
 
 **Concrete Numerical Example:**
@@ -124,6 +129,7 @@ Think of a sports car engine: it gets great fuel efficiency when cruising smooth
 
 #### 📐 Theoretical Physics & Equations
 Specific Fuel Consumption (SFC) measures mass of fuel burned per kilowatt-hour of shaft work:
+
 $$\text{SFC} = \frac{\dot{m}_{\text{fuel}}}{P_{\text{engine}}} \quad \left[\frac{\text{kg}}{\text{kW}\cdot\text{h}}\right]$$
 
 In `backend/environment.py` (L238–255), we apply a **piecewise partial-load SFC penalty model**:
@@ -153,10 +159,15 @@ How do you find the best engine size and battery size out of millions of combina
 
 #### 📐 Mathematical & Algorithmic Formulation
 - **Individual (Chromosome):** A vector of 2 continuous design variables:
+
   $$\vec{x} = \left[ P_{\text{engine}} \ (\text{kW}), \ E_{\text{battery}} \ (\text{kWh}) \right]$$
+
   Search bounds: $P_{\text{engine}} \in [30.0, 120.0]\text{ kW}$, $E_{\text{battery}} \in [5.0, 50.0]\text{ kWh}$.
+
 - **Fitness Function:** Total simulated mission flight endurance in hours:
+
   $$\mathcal{F}(\vec{x}) = \text{Simulated Endurance (Hours)} \times \text{Mission Completion Penalty Factor}$$
+
 - **Genetic Operators (DEAP Framework):**
   - **Crossover (`cxBlend`, $\alpha=0.5$):** Blends parent variables: $x_{\text{child}} = (1-\gamma)x_1 + \gamma x_2$.
   - **Mutation (`mutGaussian`, $\mu=0, \sigma=[8.0, 4.0]$):** Adds random Gaussian noise to prevent getting stuck in local optima.
@@ -213,15 +224,19 @@ Reinforcement Learning (RL) is like training a pilot in a simulator by giving po
 #### 📐 Mathematical 5-Tuple Formulation $(S, A, P, R, \gamma)$
 
 1. **State Space ($S \in \mathbb{R}^9$):** 9D Observation Vector:
+
    $$\vec{s}_t = \left[ h, V_{\text{TAS}}, \text{SoC}, \frac{m_{\text{fuel}}}{m_{\text{fuel,init}}}, P_{\text{req}}, \frac{P_{\text{engine}}}{P_{\text{cont}}}, \rho(h), t, \text{Phase ID} \right]$$
 
 2. **Action Space ($A \in [0.0, 1.0]$):** Continuous Power Split Ratio (PSR):
+
    $$\text{PSR} = \frac{P_{\text{motor}}}{P_{\text{req}}}$$
+
    - **PSR = 0.0:** 100% Turboshaft Engine Drive (Cruise flight phase)
    - **PSR = 0.5:** 50% Engine + 50% Motor (Sustained climb phase)
    - **PSR = 1.0:** 100% Electric Drive (Silent stealth loiter phase)
 
 3. **Dense Reward Function ($R_t$):**
+
    $$R_t = R_{\text{phase}} + 0.5 \cdot \eta_{\text{SFC}} + 0.2 \cdot \text{SoC} - 10.0 \cdot P_{\text{deficit}} - 500.0 \cdot \text{Penalty}_{\text{stall}}$$
 
 ---
@@ -248,6 +263,7 @@ Military defense engineers (HAL / Indian Armed Forces) **refuse to trust a black
 
 #### 📐 Mathematical Formulation
 Derived from cooperative game theory (Lloyd Shapley, Nobel Prize):
+
 $$\phi_i(x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F|-|S|-1)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
 
 $\phi_i$ quantifies the exact contribution of sensor input $i$ (e.g., Battery SoC) to the output PSR command!
