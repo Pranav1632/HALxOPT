@@ -10,8 +10,8 @@
 ## 🗺️ Master Mission Trajectory & Profile Timeline
 
 ```
-                            FULL 6-PHASE MISSION PROFILE TIMELINE
-                            
+                          FULL 6-PHASE MISSION PROFILE TIMELINE
+                          
     Altitude (m)
       ▲
 5,000 ┼                             ┌───────────────────┐               
@@ -34,14 +34,17 @@ Takeoff is the most torque-intensive phase of flight. The 1,000 kg airframe is s
 
 ### 📐 Physics Equations & Parameters
 - **Altitude Bounds:** $0.0\text{ m}$ to $200.0\text{ m}$ ASL
-- **Target Airspeed:** $V_{\text{takeoff}} = \max\left(1.15 \cdot V_{\text{stall}}, 25.0\text{ m/s}\right) = 27.6\text{ m/s}$ ($99.4\text{ km/h}$)
+- **Target Airspeed:** $V_{\mathrm{takeoff}} = \max\left(1.15 \cdot V_{\mathrm{stall}}, 25.0\text{ m/s}\right) = 27.6\text{ m/s}$ ($99.4\text{ km/h}$)
 - **Climb Rate ($v_y$):** $+3.0\text{ m/s}$ ($+590\text{ fpm}$)
-- **Propeller Efficiency ($\eta_{\text{prop}}$):** $0.65$ (Low efficiency at low airspeed due to high blade angle of attack)
+- **Propeller Efficiency ($\eta_{\mathrm{prop}}$):** $0.65$ (Low efficiency at low airspeed due to high blade angle of attack)
 
 ### 🔌 Power Split Policy (PSR = 0.65)
-$$\text{PSR} = 0.65 \implies \begin{cases} P_{\text{motor}} = 0.65 \cdot P_{\text{req}} & (\text{Heavy Electric Torque Boost}) \\ P_{\text{engine}} = 0.35 \cdot P_{\text{req}} & (\text{Partial Engine Throttle}) \end{cases}$$
 
-- **Battery State:** Peak discharge rate active ($C_{\text{rate}} = 5.0\text{C}$). The battery supplies high current surge for rapid acceleration.
+$$\text{PSR} = 0.65 \implies P_{\mathrm{motor}} = 0.65 \cdot P_{\mathrm{req}} \quad \text{and} \quad P_{\mathrm{engine}} = 0.35 \cdot P_{\mathrm{req}}$$
+
+- **Heavy Electric Torque Boost:** Motor provides 65% of shaft power.
+- **Partial Engine Throttle:** Engine provides 35% of shaft power.
+- **Battery State:** Peak discharge rate active ($C_{\mathrm{rate}} = 5.0\text{C}$). The battery supplies high current surge for rapid acceleration.
 - **Phase Exit Trigger:** Altitude reaches $\ge 200.0\text{ m}$.
 
 ---
@@ -49,19 +52,22 @@ $$\text{PSR} = 0.65 \implies \begin{cases} P_{\text{motor}} = 0.65 \cdot P_{\tex
 ## ↗️ Phase 2: Sustained Climb (`PHASE_CLIMB`)
 
 ### 💡 Operational Intuition
-Once clear of the runway, the UAV climbs continuously from $200\text{ m}$ up to its cruise altitude ($5,000\text{ m}$). Climbing against gravity requires doing work against potential energy ($P_{\text{climb}} = m \cdot g \cdot v_y$). The electric motor continues assisting the engine equally until cruise altitude is reached.
+Once clear of the runway, the UAV climbs continuously from $200\text{ m}$ up to its cruise altitude ($5,000\text{ m}$). Climbing against gravity requires doing work against potential energy ($P_{\mathrm{climb}} = m \cdot g \cdot v_y$). The electric motor continues assisting the engine equally until cruise altitude is reached.
 
 ### 📐 Physics Equations & Parameters
 - **Altitude Bounds:** $200.0\text{ m}$ to $5,000.0\text{ m}$ ASL
-- **Target Airspeed:** $V_{\text{climb}} = \max\left(1.30 \cdot V_{\text{stall}}, 35.0\text{ m/s}\right) = 35.6\text{ m/s}$ ($128.2\text{ km/h}$)
+- **Target Airspeed:** $V_{\mathrm{climb}} = \max\left(1.30 \cdot V_{\mathrm{stall}}, 35.0\text{ m/s}\right) = 35.6\text{ m/s}$ ($128.2\text{ km/h}$)
 - **Climb Rate ($v_y$):** $+5.0\text{ m/s}$ ($+984\text{ fpm}$)
-- **Propeller Efficiency ($\eta_{\text{prop}}$):** $0.75$
+- **Propeller Efficiency ($\eta_{\mathrm{prop}}$):** $0.75$
 
 ### 🔌 Power Split Policy (PSR = 0.50)
+
 $$\text{PSR} = 0.50 \implies 50\%\text{ Electric Motor} + 50\%\text{ Turboshaft Engine}$$
 
 - **Rate-of-Climb Physics:** Total shaft power required:
-  $$P_{\text{req}} = \frac{P_{\text{aero}} + P_{\text{climb}}}{\eta_{\text{prop}}} = \frac{\frac{1}{2}\rho V^3 S C_D + m g v_y}{\eta_{\text{prop}}} \quad [\text{kW}]$$
+
+  $$P_{\mathrm{req}} = \frac{P_{\mathrm{aero}} + P_{\mathrm{climb}}}{\eta_{\mathrm{prop}}} = \frac{\frac{1}{2}\rho V^3 S C_D + m g v_y}{\eta_{\mathrm{prop}}} \quad [\text{kW}]$$
+
 - **Phase Exit Trigger:** Altitude reaches $\ge \text{Target Altitude } (5,000.0\text{ m})$.
 
 ---
@@ -69,26 +75,27 @@ $$\text{PSR} = 0.50 \implies 50\%\text{ Electric Motor} + 50\%\text{ Turboshaft 
 ## ✈️ Phase 3: High-Altitude Cruise (`PHASE_CRUISE`)
 
 ### 💡 Operational Intuition
-At $5,000\text{ m}$ altitude, the aircraft levels off and cruises at $250\text{ km/h}$ over long distances toward the target operational theater. Altitude climb power drops to zero ($P_{\text{climb}} = 0$). Now, fuel efficiency is king! The electric motor throttles down, allowing the turboshaft engine to carry 88% of the load in its optimal fuel consumption band ($\ge 80\%$ throttle).
+At $5,000\text{ m}$ altitude, the aircraft levels off and cruises at $250\text{ km/h}$ over long distances toward the target operational theater. Altitude climb power drops to zero ($P_{\mathrm{climb}} = 0$). Now, fuel efficiency is king! The electric motor throttles down, allowing the turboshaft engine to carry 88% of the load in its optimal fuel consumption band ($\ge 80\%$ throttle).
 
 ### 📐 Physics Equations & Parameters
 - **Altitude Bounds:** Cruise Level ($5,000.0\text{ m}$ ASL)
-- **Target Airspeed:** $V_{\text{cruise}} = 69.4\text{ m/s}$ ($250.0\text{ km/h}$ True Airspeed)
+- **Target Airspeed:** $V_{\mathrm{cruise}} = 69.4\text{ m/s}$ ($250.0\text{ km/h}$ True Airspeed)
 - **Climb Rate ($v_y$):** $0.0\text{ m/s}$ (Level flight equilibrium)
-- **Propeller Efficiency ($\eta_{\text{prop}}$):** $0.85$ (Peak cruise efficiency)
+- **Propeller Efficiency ($\eta_{\mathrm{prop}}$):** $0.85$ (Peak cruise efficiency)
 
 ### 🔌 Power Split Policy (PSR = 0.12)
+
 $$\text{PSR} = 0.12 \implies 88\%\text{ Turboshaft Engine} + 12\%\text{ Electric Motor Assist}$$
 
-- **Fuel Burn Rate:** The engine operates at $\text{SFC}_{\text{base}} = 0.38\text{ kg/kWh}$. Fuel is consumed at $\sim 15.2\text{ kg/hour}$.
-- **Phase Exit Trigger:** Remaining fuel ratio drops below $40\%$ ($W_{\text{fuel}} / W_{\text{fuel,init}} < 0.40$), triggering transition to Loiter holding phase.
+- **Fuel Burn Rate:** The engine operates at $\text{SFC}_{\mathrm{base}} = 0.38\text{ kg/kWh}$. Fuel is consumed at $\sim 15.2\text{ kg/hour}$.
+- **Phase Exit Trigger:** Remaining fuel ratio drops below $40\%$ ($W_{\mathrm{fuel}} / W_{\mathrm{fuel,init}} < 0.40$), triggering transition to Loiter holding phase.
 
 ---
 
 ## 🔄 Phase 4: Loiter & Silent Stealth Overwatch (`PHASE_LOITER`)
 
 ### 💡 Operational Intuition
-The UAV arrives over the target reconnaissance area. It reduces speed to its **Best Endurance Velocity** ($V_{\text{be}} \approx 190\text{ km/h}$) to fly efficient racetrack holding orbits while carrying out optical/radar surveillance.
+The UAV arrives over the target reconnaissance area. It reduces speed to its **Best Endurance Velocity** ($V_{\mathrm{be}} \approx 190\text{ km/h}$) to fly efficient racetrack holding orbits while carrying out optical/radar surveillance.
 
 ```
           DUAL-MODE LOITER STRATEGY COMPARISON
@@ -106,8 +113,11 @@ The UAV arrives over the target reconnaissance area. It reduces speed to its **B
 ### 📐 Physics & Battery Drain Equations for Mode B (Silent Loiter)
 - **Power Required in Loiter:** Mechanical power required at $190\text{ km/h}$ is $19.1\text{ kW}$.
 - **Electrical Battery Draw:**
-  $$P_{\text{battery}} = \frac{P_{\text{aero}}}{\eta_{\text{motor}} \cdot \eta_{\text{inverter}} \cdot \eta_{\text{prop}}} = \frac{19.1\text{ kW}}{0.96 \cdot 0.98 \cdot 0.85} = \mathbf{25.3\text{ kW}}$$
+
+  $$P_{\mathrm{battery}} = \frac{P_{\mathrm{aero}}}{\eta_{\mathrm{motor}} \cdot \eta_{\mathrm{inverter}} \cdot \eta_{\mathrm{prop}}} = \frac{19.1\text{ kW}}{0.96 \cdot 0.98 \cdot 0.85} = \mathbf{25.3\text{ kW}}$$
+
 - **State-of-Charge Drain Rate (20 kWh Pack):**
+
   $$\text{SoC Drain Rate} = \frac{25.3\text{ kW}}{20.0\text{ kWh}} \times \frac{100\%}{60\text{ mins}} = \mathbf{2.11\%\text{ SoC / minute}}$$
 
 > [!IMPORTANT]
@@ -122,9 +132,9 @@ With mission objectives completed and fuel/battery reserves low, the UAV turns b
 
 ### 📐 Physics Equations & Parameters
 - **Altitude Bounds:** $5,000.0\text{ m}$ down to $200.0\text{ m}$
-- **Target Airspeed:** $V_{\text{descent}} = \max\left(1.20 \cdot V_{\text{stall}}, 30.0\text{ m/s}\right) = 30.0\text{ m/s}$ ($108.0\text{ km/h}$)
+- **Target Airspeed:** $V_{\mathrm{descent}} = \max\left(1.20 \cdot V_{\mathrm{stall}}, 30.0\text{ m/s}\right) = 30.0\text{ m/s}$ ($108.0\text{ km/h}$)
 - **Climb Rate ($v_y$):** $-1.5\text{ m/s}$ ($-295\text{ fpm}$ glideslope)
-- **Propeller Efficiency ($\eta_{\text{prop}}$):** $0.70$
+- **Propeller Efficiency ($\eta_{\mathrm{prop}}$):** $0.70$
 
 ### 🔌 Power Split Policy (PSR = 0.0)
 - Engine operates at idle ($0\text{ kW}$ net thrust needed).
@@ -139,7 +149,7 @@ The UAV executes final approach flare at low speed ($22\text{ m/s}$), descending
 
 ### 📐 Physics Equations & Parameters
 - **Altitude Bounds:** $200.0\text{ m}$ down to $5.0\text{ m}$
-- **Target Airspeed:** $V_{\text{landing}} = \max\left(1.10 \cdot V_{\text{stall}}, 22.0\text{ m/s}\right) = 22.0\text{ m/s}$ ($79.2\text{ km/h}$)
+- **Target Airspeed:** $V_{\mathrm{landing}} = \max\left(1.10 \cdot V_{\mathrm{stall}}, 22.0\text{ m/s}\right) = 22.0\text{ m/s}$ ($79.2\text{ km/h}$)
 - **Climb Rate ($v_y$):** $-0.8\text{ m/s}$ ($-158\text{ fpm}$)
 - **Completion Trigger:** Altitude $\le 5.0\text{ m} \implies$ Phase becomes `PHASE_COMPLETED`, awarding terminal reward **$+500.0$**!
 

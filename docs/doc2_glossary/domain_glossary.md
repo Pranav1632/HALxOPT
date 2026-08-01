@@ -134,11 +134,11 @@ $$\text{SFC} = \frac{\dot{m}_{\mathrm{fuel}}}{P_{\mathrm{engine}}} \quad \left[\
 
 In `backend/environment.py` (L238–255), we apply a **piecewise partial-load SFC penalty model**:
 
-$$\text{SFC}_{\mathrm{effective}}(L_f) = \begin{cases} 
-\text{SFC}_{\mathrm{base}}, & L_f \ge 0.80 \\
-\text{SFC}_{\mathrm{base}} \cdot \left(1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right), & 0.50 \le L_f < 0.80 \\
-\text{SFC}_{\mathrm{base}} \cdot \left(1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right), & L_f < 0.50
-\end{cases}$$
+$$\text{SFC}_{\mathrm{effective}}(L_f) = \text{SFC}_{\mathrm{base}} \qquad \text{for } L_f \ge 0.80$$
+
+$$\text{SFC}_{\mathrm{effective}}(L_f) = \text{SFC}_{\mathrm{base}} \cdot \left[1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right] \qquad \text{for } 0.50 \le L_f < 0.80$$
+
+$$\text{SFC}_{\mathrm{effective}}(L_f) = \text{SFC}_{\mathrm{base}} \cdot \left[1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right] \qquad \text{for } L_f < 0.50$$
 
 Where load fraction $L_f = \frac{P_{\mathrm{engine}}}{P_{\mathrm{engine, continuous}}}$.
 
@@ -238,7 +238,7 @@ $$\text{PSR} = \frac{P_{\mathrm{motor}}}{P_{\mathrm{req}}}$$
 
 **3. Dense Reward Function ($R_t$):**
 
-$$R_t = R_{\mathrm{phase}} + 0.5 \cdot \eta_{\mathrm{SFC}} + 0.2 \cdot \mathrm{SoC} - 10.0 \cdot P_{\mathrm{deficit}} - 500.0 \cdot \text{StallPenalty}$$
+$$R_t = R_{\mathrm{phase}} + 0.5 \cdot \eta_{\text{SFC}} + 0.2 \cdot \mathrm{SoC} - 10.0 \cdot P_{\mathrm{deficit}} - 500.0 \cdot \text{StallPenalty}$$
 
 ---
 
