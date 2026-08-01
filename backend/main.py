@@ -75,6 +75,24 @@ class OptimizationRequest(BaseModel):
         le=1.0,
     )
 
+    @model_validator(mode="after")
+    def validate_flight_envelope(self):
+        # Rule 1: High Altitude Payload Ceiling (at >8000m, max payload capped at 200kg)
+        if self.target_altitude > 8000.0 and self.payload_weight > 200.0:
+            raise ValueError(
+                f"Altitude {self.target_altitude}m exceeds flight service ceiling for payload {self.payload_weight}kg. "
+                f"At altitudes > 8000m, maximum allowable payload is 200.0 kg due to air density lapse."
+            )
+
+        # Rule 2: Minimum Cruise Speed at High Altitude (Stall Safety Margin)
+        if self.target_altitude >= 8000.0 and self.target_speed_kmh < 200.0:
+            raise ValueError(
+                f"Target speed {self.target_speed_kmh} km/h is below stall safety limit at altitude {self.target_altitude}m. "
+                f"At altitudes ≥ 8000m, minimum cruise speed must be ≥ 200 km/h."
+            )
+
+        return self
+
 
 class OptimalSpecs(BaseModel):
     engine_kw: float
