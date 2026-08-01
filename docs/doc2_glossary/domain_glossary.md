@@ -22,7 +22,8 @@ MTOW is the top-level mass budget equation ($W_0$):
 $$W_0 = W_{\text{airframe}} + W_{\text{engine}} + W_{\text{motor}} + W_{\text{battery}} + W_{\text{payload}} + W_{\text{fuel}} \le \text{MTOW}$$
 
 In our 1,000 kg MTOW class fixed-wing UAV ($9,810\text{ N}$ weight force at sea level):
-$$\text{Empty Weight Fraction } \left(\frac{W_e}{W_0}\right) = \frac{W_{\text{airframe}} + W_{\text{propulsion}}}{W_0} = \frac{350 + (35 + 12.3 + 80)}{1000} = 0.477 \text{ (47.7\%)}$$
+
+$$\text{Empty Weight Fraction } \left(\frac{W_e}{W_0}\right) = \frac{W_{\text{airframe}} + W_{\text{propulsion}}}{W_0} = \frac{350 + (35 + 12.3 + 80)}{1000} = 0.477 \quad \text{(47.7\%)}$$
 
 > [!NOTE]
 > **Why This Matters in Code:** In `backend/environment.py` (L97–111), the fuel capacity is computed dynamically as the *remaining mass budget* after subtracting airframe, engine, motor, battery, and payload. If component weights exceed MTOW, `fuel_initial <= 0`, causing an immediate simulation termination!
@@ -128,12 +129,16 @@ $$\text{SFC} = \frac{\dot{m}_{\text{fuel}}}{P_{\text{engine}}} \quad \left[\frac
 In `backend/environment.py` (L238–255), we apply a **piecewise partial-load SFC penalty model**:
 
 $$\text{SFC}_{\text{effective}}(L_f) = \begin{cases} 
-\text{SFC}_{\text{base}}, & L_f \ge 0.80 \quad (\text{Optimal efficiency band}) \\
-\text{SFC}_{\text{base}} \cdot \left[1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right], & 0.50 \le L_f < 0.80 \quad (\text{Up to +15\% fuel penalty}) \\
-\text{SFC}_{\text{base}} \cdot \left[1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right], & L_f < 0.50 \quad (\text{Up to +40\% heavy fuel penalty})
+\text{SFC}_{\text{base}}, & L_f \ge 0.80 \\
+\text{SFC}_{\text{base}} \cdot \left(1.0 + 0.15 \cdot \frac{0.80 - L_f}{0.30}\right), & 0.50 \le L_f < 0.80 \\
+\text{SFC}_{\text{base}} \cdot \left(1.15 + 0.25 \cdot \frac{0.50 - L_f}{0.50}\right), & L_f < 0.50
 \end{cases}$$
 
 Where load fraction $L_f = \frac{P_{\text{engine}}}{P_{\text{engine, continuous}}}$.
+
+- **Optimal Efficiency Zone ($L_f \ge 0.80$):** Nominal fuel burn rate ($\text{SFC}_{\text{base}} = 0.38\text{ kg/kWh}$).
+- **Mild Penalty Zone ($0.50 \le L_f < 0.80$):** Up to +15% fuel penalty due to partial throttle restriction.
+- **Heavy Penalty Zone ($L_f < 0.50$):** Up to +40% heavy fuel penalty due to deep underloading.
 
 ---
 
@@ -205,13 +210,19 @@ A design $\vec{x}_A$ **dominates** $\vec{x}_B$ if $\vec{x}_A$ is no worse than $
 #### 💡 The Layman's Intuition
 Reinforcement Learning (RL) is like training a pilot in a simulator by giving points for good decisions and deducting points for bad ones. To use RL, we frame the flight problem as a **Markov Decision Process (MDP)**: at every 10-second tick, the pilot looks at the dashboard instruments (State), makes a decision on power split (Action), and receives feedback on fuel/altitude (Reward).
 
-#### 📐 Mathematical 5-Tuple $(\mathcal{S}, \mathcal{A}, \mathcal{P}, \mathcal{R}, \gamma)$
-1. **State Space ($\mathcal{S} \in \mathbb{R}^9$):** 9D Observation Vector:
+#### 📐 Mathematical 5-Tuple Formulation $(S, A, P, R, \gamma)$
+
+1. **State Space ($S \in \mathbb{R}^9$):** 9D Observation Vector:
    $$\vec{s}_t = \left[ h, V_{\text{TAS}}, \text{SoC}, \frac{m_{\text{fuel}}}{m_{\text{fuel,init}}}, P_{\text{req}}, \frac{P_{\text{engine}}}{P_{\text{cont}}}, \rho(h), t, \text{Phase ID} \right]$$
-2. **Action Space ($\mathcal{A} \in [0.0, 1.0]$):** Continuous Power Split Ratio (PSR):
-   $$\text{PSR} = \frac{P_{\text{motor}}}{P_{\text{req}}} \quad \implies \begin{cases} 0.0 & \text{100\% Engine (Cruise)} \\ 0.5 & \text{50\% Engine + 50\% Motor (Climb)} \\ 1.0 & \text{100\% Electric (Silent Loiter)} \end{cases}$$
-3. **Dense Reward Function ($\mathcal{R}$):**
-   $$r_t = r_{\text{phase}} + 0.5 \cdot \eta_{\text{SFC}} + 0.2 \cdot \text{SoC} - 10.0 \cdot P_{\text{deficit}} - 500.0 \cdot \mathbb{I}(\text{Stall})$$
+
+2. **Action Space ($A \in [0.0, 1.0]$):** Continuous Power Split Ratio (PSR):
+   $$\text{PSR} = \frac{P_{\text{motor}}}{P_{\text{req}}}$$
+   - **PSR = 0.0:** 100% Turboshaft Engine Drive (Cruise flight phase)
+   - **PSR = 0.5:** 50% Engine + 50% Motor (Sustained climb phase)
+   - **PSR = 1.0:** 100% Electric Drive (Silent stealth loiter phase)
+
+3. **Dense Reward Function ($R_t$):**
+   $$R_t = R_{\text{phase}} + 0.5 \cdot \eta_{\text{SFC}} + 0.2 \cdot \text{SoC} - 10.0 \cdot P_{\text{deficit}} - 500.0 \cdot \text{Penalty}_{\text{stall}}$$
 
 ---
 
@@ -239,7 +250,7 @@ Military defense engineers (HAL / Indian Armed Forces) **refuse to trust a black
 Derived from cooperative game theory (Lloyd Shapley, Nobel Prize):
 $$\phi_i(x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F|-|S|-1)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
 
-`\phi_i` quantifies the exact contribution of sensor input $i$ (e.g., Battery SoC) to the output PSR command!
+$\phi_i$ quantifies the exact contribution of sensor input $i$ (e.g., Battery SoC) to the output PSR command!
 
 ```
          SHAP FEATURE IMPORTANCE CHART (MIL-HDBK-516C AUDIT)
