@@ -55,16 +55,22 @@ Unlike traditional UAV sizing approaches that evaluate static textbook equations
 ## 📉 Innovation 4: Partial-Load Specific Fuel Consumption (SFC) Penalty Model
 
 ### Propulsion Physics Innovation
-Models non-linear gas turbine SFC degradation at partial throttle to prevent oversizing:
+Models non-linear gas turbine SFC degradation at partial throttle to prevent the Genetic Algorithm from sizing an excessively large engine that runs underloaded and inefficiently:
 
-$$\text{SFC}(L_f) = 
+- **Load Fraction Definition:** $L_f = \frac{P_{\text{engine}}}{P_{\text{continuous}}}$
+- **Optimal Operating Zone ($L_f \ge 0.8$):** Base fuel consumption $\text{SFC}_{\text{base}} = 0.38\text{ kg/kWh}$.
+- **Mild Penalty Zone ($0.5 \le L_f < 0.8$):** Linear fuel degradation up to **15% worse** than nominal.
+- **Heavy Penalty Zone ($L_f < 0.5$):** Severe degradation up to **40% worse** at low partial loads.
+
+$$\text{SFC}_{\text{eff}}(L_f) = 
 \begin{cases} 
-\text{SFC}_{\text{base}} & \text{for } L_f \ge 0.8 \\
-\text{SFC}_{\text{base}} \cdot \left[1.0 + 0.15 \cdot \frac{0.8 - L_f}{0.3}\right] & \text{for } 0.5 \le L_f < 0.8 \\
-\text{SFC}_{\text{base}} \cdot \left[1.15 + 0.25 \cdot \frac{0.5 - L_f}{0.5}\right] & \text{for } L_f < 0.5 
+\text{SFC}_{\text{base}} & \text{for } L_f \ge 0.8 \\[6pt]
+\text{SFC}_{\text{base}} \cdot \left(1.0 + 0.15 \cdot \frac{0.8 - L_f}{0.3}\right) & \text{for } 0.5 \le L_f < 0.8 \\[6pt]
+\text{SFC}_{\text{base}} \cdot \left(1.15 + 0.25 \cdot \frac{0.5 - L_f}{0.5}\right) & \text{for } L_f < 0.5 
 \end{cases}$$
 
-Where load fraction $L_f = P_{\text{engine}} / P_{\text{continuous}}$. Penalizes oversized engines running underloaded (up to +40% fuel penalty).
+> [!TIP]
+> **Judge Pitch:** *"Naive simulators assume constant SFC. In reality, gas turbines lose efficiency when throttled down. Our physics engine penalizes underloaded engines by up to +40% SFC penalty, forcing the optimizer to size an engine operating in its sweet spot (≥80% load)."*
 
 ---
 
