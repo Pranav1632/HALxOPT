@@ -46,7 +46,7 @@ To maximize energy density, cold-weather survival, and electrical efficiency, th
 
 | Component Category | Baseline Code Spec | **Recommended SOTA Component** | Competitive Advantage for HAL Presentation |
 | :--- | :--- | :--- | :--- |
-| **Electric Motor** | **EMRAX 228 MV**<br>*(12.3 kg, 55 kW cont., 96% eff)* | **EMRAX 268 / YASA 750**<br>*(Axial-Flux Motor)* | High power density ($8.86\text{ kW/kg}$), enables direct-drive propeller shaft without heavy gearbox. |
+| **Electric Motor** | **EMRAX 228 MV**<br>*(12.3 kg, 55 kW cont., 96% eff)* | **EMRAX 268 (LC)**<br>*(22.3 kg, 120 kW cont., 210 kW peak, 96% eff, 500 Nm)* | SOTA axial-flux motor. Upgrading to the EMRAX 268 doubles continuous shaft power to $120\text{ kW}$ and peak power to $210\text{ kW}$ at only $22.3\text{ kg}$ weight, increasing power density to $9.42\text{ kW/kg}$. |
 | **Heat Engine (ICE)** | **Scalable Turboshaft**<br>*(35 kg @ 67.5 kW ref)* | **Rotax 916 iS Turbocharged ICE** / **PBS TJ100** | **Turbocharging** maintains intake pressure, mitigating power loss up to 18,000 ft ASL (Leh-Ladakh operations). |
 | **Propeller System** | Fixed Efficiency ($\eta = 0.85$) | **Constant-Speed Variable Pitch Propeller** | Dynamically adjusts blade angle to maintain peak aerodynamic efficiency ($\eta = 0.88 - 0.90$) across all speeds. |
 | **Battery Chemistry** | 21700 NCA ($250\text{ Wh/kg}$) | **Silicon-Anode Li-NMC ($260\text{ Wh/kg}$ pack)** | Provides **+2.4 kWh more energy** within the same 80 kg budget, extending silent loiter by +10 minutes. |

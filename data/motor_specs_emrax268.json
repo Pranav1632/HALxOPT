@@ -1,0 +1,34 @@
+{
+  "manufacturer": "EMRAX",
+  "model": "268",
+  "mechanical": {
+    "type": "Axial flux motor / generator",
+    "casing_diameter_mm": 268,
+    "axial_length_mm": 94,
+    "dry_mass_kg": {
+      "air_cooled_AC": 21.4,
+      "combined_cooled_CC": 21.9,
+      "liquid_cooled_LC": 22.3
+    },
+    "stator_cooling": "air (IP21) / combined (IP21) / liquid (IP66)",
+    "mounting": {
+      "front": "6x M10 threaded holes",
+      "back": "16x M8 threaded holes"
+    },
+    "stacking": "Two motors can be stacked together to achieve doubled power / torque."
+  },
+  "electrical": {
+    "maximal_battery_voltage_vdc": {
+      "high_voltage_HV": 830,
+      "medium_voltage_MV": 830,
+      "low_voltage_LV": 340
+    },
+    "peak_power_kw": 210.0,
+    "peak_power_rpm": 4500,
+    "continuous_power_kw": 120.0,
+    "peak_torque_nm": 500.0,
+    "continuous_torque_nm": 270.0,
+    "efficiency_percent": 96.0
+  },
+  "notes": "Data sourced directly from official EMRAX mechanical and electrical datasheet screenshot. Subject to drive cycle, thermal conditions and controller capability."
+}

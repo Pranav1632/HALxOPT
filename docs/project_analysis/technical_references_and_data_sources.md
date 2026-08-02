@@ -48,6 +48,8 @@
 ## ⚡ 3. Electric Motors & Battery Electro-Chemistry
 
 ### 3.1 EMRAX Axial-Flux Electric Motor Specs
+
+#### EMRAX 228 Medium Voltage (MV) Variant
 - **Manufacturer Datasheet:** EMRAX Motors Ltd., *EMRAX 228 Medium Voltage (MV) Technical Datasheet & Performance Charts*.
 - **Data Points Sourced:**
   - Continuous shaft power: **$55\text{ kW}$**
@@ -55,6 +57,20 @@
   - Drive weight: **$12.3\text{ kg}$** (Stator + Rotor + Liquid Coolant Jacket)
   - Peak electrical conversion efficiency: **$96.0\%$**
 - **Code Reference:** [`backend/environment.py` L112–115](file:///d:/project/HAL/backend/environment.py#L112-L115).
+
+#### EMRAX 268 High Voltage / Liquid Cooled Variant
+- **Manufacturer Datasheet:** EMRAX Motors Ltd., *EMRAX 268 Mechanical and Electrical Technical Datasheet*.
+- **Data Points Sourced:**
+  - Casing Diameter & Axial Length: **$268\text{ mm}$** and **$94\text{ mm}$**
+  - Dry Mass: **$21.4\text{ kg}$ (AC) / $21.9\text{ kg}$ (CC) / $22.3\text{ kg}$ (LC)**
+  - Stator Cooling: Air (IP21) / Combined (IP21) / Liquid (IP66)
+  - Maximal Battery Voltage: **$830\text{ Vdc}$ (HV) / $830\text{ Vdc}$ (MV) / $340\text{ Vdc}$ (LV)**
+  - Peak Power (at 4500 RPM): **$210\text{ kW}$**
+  - Continuous Power: **Up to $120\text{ kW}$**
+  - Peak & Continuous Torque: **$500\text{ Nm}$** / **Up to $270\text{ Nm}$**
+  - Peak Efficiency: **Up to $96.0\%$**
+- **Data File Reference:** [`data/motor_specs_emrax268.json`](file:///d:/project/HAL/data/motor_specs_emrax268.json).
+
 
 ### 3.2 Battery Specific Energy & Chemistry (Silicon Anode NMC 811)
 - **Technical Whitepaper:** Amprius Technologies Inc., *High-Energy Silicon Nanowire Lithium-Ion Battery Datasheet for Aerospace & HALE UAVs*.
