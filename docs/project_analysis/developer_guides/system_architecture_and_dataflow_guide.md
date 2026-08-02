@@ -1,7 +1,7 @@
 # 🗺️ System Architecture & Data Flow Guide (Team Member Edition)
 
 > **Project:** AeroOptima — Tactical Hybrid-Electric UAV Optimization Platform (HAL × IIT Indore)  
-> **Location:** `docs/project_analysis/system_architecture_and_dataflow_guide.md`  
+> **Location:** `docs/project_analysis/developer_guides/system_architecture_and_dataflow_guide.md`  
 > **Purpose:** A complete, self-contained visual guide explaining how the whole project works under the hood so any team member can understand the system architecture, data flow, and core design logic independently.
 
 ---
@@ -145,4 +145,4 @@ $$\text{MTOW (1,000 kg)} = W_{\text{airframe}} + W_{\text{payload}} + W_{\text{e
 ---
 
 > [!TIP]
-> **Next Step for Team Members:** Read the companion guide [`codebase_walkthrough_and_developer_guide.md`](file:///d:/project/HAL/docs/project_analysis/codebase_walkthrough_and_developer_guide.md) to understand line-by-line how the Python backend and Next.js frontend code works!
+> **Next Step for Team Members:** Read the companion guide [`codebase_walkthrough_and_developer_guide.md`](file:///d:/project/HAL/docs/project_analysis/developer_guides/codebase_walkthrough_and_developer_guide.md) to understand line-by-line how the Python backend and Next.js frontend code works!

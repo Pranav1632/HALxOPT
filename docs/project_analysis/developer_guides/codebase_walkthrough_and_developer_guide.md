@@ -1,7 +1,7 @@
 # 💻 Codebase Walkthrough, Quickstart & Team FAQ Guide
 
 > **Project:** AeroOptima — Tactical Hybrid-Electric UAV Optimization Platform (HAL × IIT Indore)  
-> **Location:** `docs/project_analysis/codebase_walkthrough_and_developer_guide.md`  
+> **Location:** `docs/project_analysis/developer_guides/codebase_walkthrough_and_developer_guide.md`  
 > **Purpose:** A practical, line-by-line codebase walkthrough, local setup guide, and FAQ to help any team member run, modify, and extend the project code independently.
 
 ---

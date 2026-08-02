@@ -1,7 +1,7 @@
 # ⚙️ Hardware Component Recommendations & Expected Operational Outputs
 
 > **Project:** AeroOptima — Tactical Hybrid-Electric UAV Optimization Platform (HAL × IIT Indore)  
-> **Location:** `docs/project_analysis/hardware_components_and_expected_outputs.md`  
+> **Location:** `docs/project_analysis/hardware_and_sizing/hardware_components_and_expected_outputs.md`  
 > **Target System:** 1,000 kg Maximum Takeoff Weight (MTOW) Fixed-Wing Tactical MALE UAV for High-Altitude Himalayan Operational Theater (Leh-Ladakh / Siachen Altitude Envelope up to 10,000m ASL).
 
 ---

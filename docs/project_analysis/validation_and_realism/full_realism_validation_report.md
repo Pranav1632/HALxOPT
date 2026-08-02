@@ -190,7 +190,7 @@ At 5,000m: $P_{\text{alt}} = 67.5 \times 0.601 = 40.6\text{ kW}$ (vs. coded cons
 
 **Realism Impact:** HIGH. Without altitude derating, the engine appears ~67% more powerful at cruise altitude than it physically would be. This inflates endurance and makes the heuristic PSR policy less aggressive than it needs to be.
 
-**Implementation Reference:** `docs/project_analysis/realism_gap_analysis.md` → Gap A, `docs/aerospace_physics/aerospace_engineering_report.md`
+**Implementation Reference:** `docs/project_analysis/validation_and_realism/realism_gap_analysis.md` → Gap A, `docs/aerospace_physics/aerospace_engineering_report.md`
 
 ---
 
@@ -219,7 +219,7 @@ $$\eta_{\text{prop}} = f(J) = f\left(\frac{V_{\infty}}{n \cdot D}\right)$$
 
 **Realism Impact:** MEDIUM. Acceptable for deterministic optimization, but RL agents trained in zero-wind environments will fail in real deployments. The documentation correctly identifies domain randomization as the fix.
 
-**Implementation Reference:** `docs/project_analysis/realism_gap_analysis.md` → Gap C, `docs/rl_ml_strategy/rl_ml_integration_roadmap.md` → Task 3
+**Implementation Reference:** `docs/project_analysis/validation_and_realism/realism_gap_analysis.md` → Gap C, `docs/rl_ml_strategy/rl_ml_integration_roadmap.md` → Task 3
 
 ---
 

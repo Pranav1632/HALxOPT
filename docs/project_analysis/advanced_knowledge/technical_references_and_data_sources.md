@@ -1,7 +1,7 @@
 # 📚 Technical References, Textbooks & Data Sources Bibliography
 
 > **Project:** AeroOptima — Tactical Hybrid-Electric UAV Sizing & Optimization (HAL × IIT Indore)  
-> **File:** `docs/project_analysis/technical_references_and_data_sources.md`  
+> **File:** `docs/project_analysis/advanced_knowledge/technical_references_and_data_sources.md`  
 > **Purpose:** Document the engineering textbooks, industry datasheets, research papers, and military standards from which AeroOptima's flight physics, engine scaling, electric motors, battery chemistries, and RL algorithms were sourced.
 
 ---

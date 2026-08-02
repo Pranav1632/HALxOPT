@@ -1,7 +1,7 @@
 # 🎓 Extra Knowledge Guide: Real-World UAV Case Studies & Defense Topics
 
 > **Project:** AeroOptima — Tactical Hybrid-Electric UAV Sizing & Optimization (HAL × IIT Indore)  
-> **Location:** `docs/project_analysis/extra_knowledge_and_uav_case_studies.md`  
+> **Location:** `docs/project_analysis/advanced_knowledge/extra_knowledge_and_uav_case_studies.md`  
 > **Purpose:** A master knowledge roadmap comparing AeroOptima against existing real-world UAVs (Hermes 900, TAPAS-BH-201, MQ-9 Reaper, NASA X-57) and covering deep aerospace, electrical, RL, and airworthiness topics for judge defense.
 
 ---

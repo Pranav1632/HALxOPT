@@ -101,12 +101,13 @@ These docs contain **physics formulas that govern the flight simulator**.
 
 | Document | Key Purpose | Implementation Action |
 | :--- | :--- | :--- |
-| [`full_realism_validation_report.md`](file:///d:/project/HAL/docs/project_analysis/full_realism_validation_report.md) | Full 50-check audit report | ✅ Pushed to repo (92% realism score) |
-| [`hardware_components_and_expected_outputs.md`](file:///d:/project/HAL/docs/project_analysis/hardware_components_and_expected_outputs.md) | Specs & expected outputs for all 10 systems | ✅ Pushed to repo |
-| [`project_evaluation_report.md`](file:///d:/project/HAL/docs/project_analysis/project_evaluation_report.md) | Realism & weight budget evaluation | Confirms empty weight fraction $W_e/W_0 = 0.45$ |
-| [`realism_gap_analysis.md`](file:///d:/project/HAL/docs/project_analysis/realism_gap_analysis.md) | 3 gaps: altitude derating, battery cold, wind | **Gap A (P0), Gap B (P3), Gap C (P2)** |
-| [`rl_testing_and_data_flow_guide.md`](file:///d:/project/HAL/docs/project_analysis/rl_testing_and_data_flow_guide.md) | 5D state vector flow & `test_rl.py` script | Needs creation of `backend/test_rl.py` |
-| [`rl_training_hardware_roadmap.md`](file:///d:/project/HAL/docs/project_analysis/rl_training_hardware_roadmap.md) | CPU parallel training & `train_rl.py` | Needs creation of `backend/train_rl.py` |
+| [`validation_and_realism/full_realism_validation_report.md`](file:///d:/project/HAL/docs/project_analysis/validation_and_realism/full_realism_validation_report.md) | Full 50-check audit report | ✅ Pushed to repo (92% realism score) |
+| [`hardware_and_sizing/hardware_components_and_expected_outputs.md`](file:///d:/project/HAL/docs/project_analysis/hardware_and_sizing/hardware_components_and_expected_outputs.md) | Specs & expected outputs for all 10 systems | ✅ Pushed to repo |
+| [`validation_and_realism/project_evaluation_report.md`](file:///d:/project/HAL/docs/project_analysis/validation_and_realism/project_evaluation_report.md) | Realism & weight budget evaluation | Confirms empty weight fraction $W_e/W_0 = 0.45$ |
+| [`validation_and_realism/realism_gap_analysis.md`](file:///d:/project/HAL/docs/project_analysis/validation_and_realism/realism_gap_analysis.md) | 3 gaps: altitude derating, battery cold, wind | **Gap A (P0), Gap B (P3), Gap C (P2)** |
+| [`developer_guides/rl_testing_and_data_flow_guide.md`](file:///d:/project/HAL/docs/project_analysis/developer_guides/rl_testing_and_data_flow_guide.md) | 9D state vector flow & `test_rl.py` script | Needs creation of `backend/test_rl.py` |
+| [`developer_guides/rl_training_hardware_roadmap.md`](file:///d:/project/HAL/docs/project_analysis/developer_guides/rl_training_hardware_roadmap.md) | CPU parallel training & `train_rl.py` | Needs creation of `backend/train_rl.py` |
+
 
 ---
 

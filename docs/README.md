@@ -22,17 +22,28 @@ docs/
 │   └── flight_envelope_constraints.md   # Coupled physics rules, stall boundaries & Pydantic validators
 │
 ├── project_analysis/                    # Architecture, Hardware Specs, Audits & Developer Guides
-│   ├── system_architecture_and_dataflow_guide.md # High-level architecture & 9-step execution flow
-│   ├── codebase_walkthrough_and_developer_guide.md# Local setup guide, line-by-line code map & FAQ
-│   ├── hardware_components_and_expected_outputs.md# Detailed hardware specs, power & telemetry outputs
-│   ├── full_realism_validation_report.md# 50-check physics & realism validation audit (92% score)
-│   ├── realism_gap_analysis.md          # 3 critical gaps: altitude derating, cold battery, wind
-│   ├── project_evaluation_report.md     # Weight fraction validation (We/W0 = 0.45) & GA status
-│   ├── ga_modularization_plan.md        # Refactoring plan to split optimizer.py into package
-│   ├── rl_testing_and_data_flow_guide.md# 9D observation vector flow & test_rl.py script
-│   ├── rl_training_hardware_roadmap.md  # CPU parallel training benchmarks & FastAPI serving
-│   ├── reinforcement_learning_and_ai_innovations.md# Wind disturbance RL & safety overrides
-│   └── component_and_battery_recommendations.md# SOTA component selection matrix
+│   ├── README.md                        # Project analysis index
+│   │
+│   ├── developer_guides/                # Developer setup, walkthroughs & data flow
+│   │   ├── codebase_walkthrough_and_developer_guide.md
+│   │   ├── system_architecture_and_dataflow_guide.md
+│   │   ├── ga_modularization_plan.md
+│   │   ├── rl_testing_and_data_flow_guide.md
+│   │   └── rl_training_hardware_roadmap.md
+│   │
+│   ├── hardware_and_sizing/             # S specs, component selections & outputs
+│   │   ├── hardware_components_and_expected_outputs.md
+│   │   └── component_and_battery_recommendations.md
+│   │
+│   ├── validation_and_realism/          # Physics audits & gap analysis reports
+│   │   ├── full_realism_validation_report.md
+│   │   ├── realism_gap_analysis.md
+│   │   └── project_evaluation_report.md
+│   │
+│   └── advanced_knowledge/              # Defense case studies & academic references
+│       ├── extra_knowledge_and_uav_case_studies.md
+│       ├── technical_references_and_data_sources.md
+│       └── reinforcement_learning_and_ai_innovations.md
 │
 ├── aerospace_physics/                   # Mathematical Models & Environmental Physics
 │   ├── README.md                        # Physics directory overview
@@ -64,23 +75,23 @@ docs/
 ## 🚀 Navigation Guide by Role
 
 ### 👨‍💻 For Software Developers & Team Members
-1. Start with [`system_architecture_and_dataflow_guide.md`](./project_analysis/system_architecture_and_dataflow_guide.md) to understand the high-level system components and HTTP data flows.
-2. Follow [`codebase_walkthrough_and_developer_guide.md`](./project_analysis/codebase_walkthrough_and_developer_guide.md) to set up the Python backend (`uvicorn main:app`) and Next.js frontend (`npm run dev`) locally.
+1. Start with [`system_architecture_and_dataflow_guide.md`](./project_analysis/developer_guides/system_architecture_and_dataflow_guide.md) to understand the high-level system components and HTTP data flows.
+2. Follow [`codebase_walkthrough_and_developer_guide.md`](./project_analysis/developer_guides/codebase_walkthrough_and_developer_guide.md) to set up the Python backend (`uvicorn main:app`) and Next.js frontend (`npm run dev`) locally.
 3. Reference [`doc_to_code_cross_reference.md`](./doc_to_code_cross_reference.md) to see where each theoretical equation is implemented in Python code.
 
 ### ✈️ For Aerospace & Hardware Engineers
 1. Read [`domain_glossary.md`](./doc2_glossary/domain_glossary.md) for masterclass explanations of ISA troposphere models, Oswald drag polars, and SFC partial-load fuel penalties.
-2. Inspect [`hardware_components_and_expected_outputs.md`](./project_analysis/hardware_components_and_expected_outputs.md) for specs and expected outputs of the Rotax ICE, EMRAX 228 motor, 800V DC bus, and MT-Propeller system.
+2. Inspect [`hardware_components_and_expected_outputs.md`](./project_analysis/hardware_and_sizing/hardware_components_and_expected_outputs.md) for specs and expected outputs of the Rotax ICE, EMRAX 228 motor, 800V DC bus, and MT-Propeller system.
 3. Review [`flight_envelope_constraints.md`](./doc2_glossary/flight_envelope_constraints.md) for coupled physics rules (altitude ceilings, stall speeds, and MTOW mass locks).
 
 ### 🤖 For AI / Reinforcement Learning Researchers
 1. Read [`rl_ml_integration_roadmap.md`](./rl_ml_strategy/rl_ml_integration_roadmap.md) and [`deep_unnoticed_codebase_audit.md`](./rl_ml_strategy/deep_unnoticed_codebase_audit.md) for the 9D observation vector and dense reward shaping formulation.
-2. Review [`rl_training_hardware_roadmap.md`](./project_analysis/rl_training_hardware_roadmap.md) to understand CPU parallel training benchmarks using `SubprocVecEnv`.
+2. Review [`rl_training_hardware_roadmap.md`](./project_analysis/developer_guides/rl_training_hardware_roadmap.md) to understand CPU parallel training benchmarks using `SubprocVecEnv`.
 3. Check [`unnoticed_and_future_rl_ml.md`](./rl_ml_strategy/unnoticed_and_future_rl_ml.md) for Explainable AI (XAI / SHAP) military airworthiness compliance.
 
 ### 🏆 For Competition Judges & Evaluators
 1. Start with [`deep_innovations_and_pitch.md`](./rl_ml_strategy/deep_innovations_and_pitch.md) for the 8 core innovations (Dual-Loop GA+Gym architecture, 800V DC bus, NATO STANAG 4671 silent loiter, non-linear SFC penalty).
-2. Inspect [`full_realism_validation_report.md`](./project_analysis/full_realism_validation_report.md) for our 50-check physics realism audit (92% realism score).
+2. Inspect [`full_realism_validation_report.md`](./project_analysis/validation_and_realism/full_realism_validation_report.md) for our 50-check physics realism audit (92% realism score).
 3. Review [`aerothon_presentation_structure.md`](./presentations/aerothon_presentation_structure.md) for the slide-by-slide pitch deck structure.
 
 ---
