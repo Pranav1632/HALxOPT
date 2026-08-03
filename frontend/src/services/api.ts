@@ -8,6 +8,17 @@ export interface OptimizationResponseData {
   env_metadata?: Record<string, any>;
 }
 
+export interface ShapFeature {
+  name: string;
+  importance: number;
+  description: string;
+}
+
+export interface ShapAuditData {
+  features: ShapFeature[];
+  certification_compliance: string;
+}
+
 export async function fetchOptimizationResults(params: SimulationParams): Promise<OptimizationResponseData> {
   const response = await fetch(`${API_URL}/api/optimize`, {
     method: 'POST',
@@ -30,5 +41,13 @@ export async function fetchOptimizationResults(params: SimulationParams): Promis
     throw new Error(errorData.detail || 'Optimization failed.');
   }
 
+  return response.json();
+}
+
+export async function fetchShapAudit(): Promise<ShapAuditData> {
+  const response = await fetch(`${API_URL}/api/shap`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch SHAP explainability audit.');
+  }
   return response.json();
 }

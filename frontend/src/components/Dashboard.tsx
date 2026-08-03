@@ -14,6 +14,7 @@ import CurrentStateWidget from './dashboard/CurrentStateWidget';
 import MissionProfileTimeline from './dashboard/MissionProfileTimeline';
 import WeightBudgetWidget from './dashboard/WeightBudgetWidget';
 import SystemConstantsWidget from './dashboard/SystemConstantsWidget';
+import ShapAuditModal from './dashboard/ShapAuditModal';
 
 const FlightScene = dynamic_import(() => import('./FlightScene'), { ssr: false });
 
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [ambientTempC, setAmbientTempC] = useState<number>(15);
   const [policyMode, setPolicyMode] = useState<string>('heuristic');
 
+  const [isShapModalOpen, setIsShapModalOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [specs, setSpecs] = useState<OptimalSpecs | null>(null);
@@ -137,7 +139,8 @@ export default function Dashboard() {
 
   return (
     <div className="h-screen w-screen bg-[#0B0F19] text-slate-200 flex flex-col overflow-hidden select-none">
-      <DashboardHeader specs={specs} />
+      <DashboardHeader specs={specs} onOpenShapModal={() => setIsShapModalOpen(true)} />
+      <ShapAuditModal isOpen={isShapModalOpen} onClose={() => setIsShapModalOpen(false)} />
 
       <div className="flex-1 flex overflow-hidden">
         <aside className="w-[284px] flex-shrink-0 border-r border-slate-800/60 bg-[#0D1117] flex flex-col overflow-y-auto custom-scrollbar">

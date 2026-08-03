@@ -5,9 +5,10 @@ import { OptimalSpecs } from '../../types/telemetry';
 
 interface DashboardHeaderProps {
   specs: OptimalSpecs | null;
+  onOpenShapModal?: () => void;
 }
 
-export default function DashboardHeader({ specs }: DashboardHeaderProps) {
+export default function DashboardHeader({ specs, onOpenShapModal }: DashboardHeaderProps) {
   return (
     <header className="h-10 flex-shrink-0 border-b border-slate-800/80 bg-[#0D1117] flex items-center justify-between px-3">
       <div className="flex items-center gap-2">
@@ -16,8 +17,16 @@ export default function DashboardHeader({ specs }: DashboardHeaderProps) {
           AeroOptima — Tactical Hybrid UAV Sizing Console
         </h1>
         <span className="text-[9px] font-mono text-slate-500 bg-slate-800/60 px-1.5 py-0.5 rounded border border-slate-700/40">
-          HAL × IIT Indore (Phase 3 Engine)
+          HAL × IIT Indore (Phase 5 Complete Engine)
         </span>
+        {onOpenShapModal && (
+          <button
+            onClick={onOpenShapModal}
+            className="px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider rounded border border-cyan-800/60 text-cyan-400 bg-cyan-950/30 hover:bg-cyan-900/50 hover:border-cyan-500/60 transition-all flex items-center gap-1 ml-2"
+          >
+            📊 SHAP XAI AUDIT
+          </button>
+        )}
       </div>
       {specs && (
         <div className="flex items-center gap-3 text-[10px] font-mono">
