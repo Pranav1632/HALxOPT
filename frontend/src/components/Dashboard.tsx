@@ -100,6 +100,11 @@ export default function Dashboard() {
     }
   }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, initialFuelFraction, headwindKmh, ambientTempC, policyMode]);
 
+  // Initial load to populate telemetry, 3D flight path, header specs & matrix
+  useEffect(() => {
+    handleOptimize();
+  }, []);
+
   const phaseDurations = useMemo(() => {
     if (!telemetry.length) return null;
     const phases: Record<string, { start: number; end: number }> = {};
