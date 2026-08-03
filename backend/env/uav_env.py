@@ -1,0 +1,349 @@
+"""
+UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
+Assembles physics sub-modules (atmosphere, aerodynamics, propulsion, battery), policy, and telemetry.
+"""
+import os
+import json
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+
+from physics import (
+    isa_density,
+    compute_aspect_ratio,
+    stall_speed,
+    compute_power_required,
+    effective_sfc,
+    scale_engine_weight,
+    scale_battery_weight,
+    max_battery_power,
+)
+from policy import heuristic_psr
+from env.telemetry import TelemetryLogger
+
+
+class UAVHybridEnv(gym.Env):
+    """
+    Custom Gymnasium environment for Hybrid-Electric Fixed-Wing UAV.
+    Implements full 6-phase mission profile: Takeoff → Climb → Cruise → Loiter → Descent → Landing.
+    """
+    metadata = {"render_modes": ["human"]}
+
+    PHASE_TAKEOFF = "takeoff"
+    PHASE_CLIMB = "climb"
+    PHASE_CRUISE = "cruise"
+    PHASE_LOITER = "loiter"
+    PHASE_DESCENT = "descent"
+    PHASE_LANDING = "landing"
+    PHASE_COMPLETED = "completed"
+
+    def __init__(
+        self,
+        engine_size_kw: float,
+        battery_capacity_kwh: float,
+        target_speed_kmh: float = 250.0,
+        target_altitude: float = 5000.0,
+        payload_weight: float = 200.0,
+        data_dir: str = None,
+        use_heuristic_policy: bool = True,
+        dt: float = 10.0,
+        enable_loiter: bool = True,
+        initial_fuel_fraction: float = 1.0,
+    ):
+        super().__init__()
+
+        self.engine_size_kw = engine_size_kw
+        self.battery_capacity_kwh = battery_capacity_kwh
+        self.target_speed_ms = target_speed_kmh / 3.6
+        self.target_altitude = target_altitude
+        self.payload_weight = payload_weight
+        self.use_heuristic_policy = use_heuristic_policy
+        self.dt = dt
+        self.enable_loiter = enable_loiter
+        self.initial_fuel_fraction = max(0.1, min(1.0, initial_fuel_fraction))
+
+        if data_dir is None:
+            self.data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+        else:
+            self.data_dir = data_dir
+
+        self._load_constants()
+
+        self.aspect_ratio = compute_aspect_ratio(self.aero["wingspan_m"], self.aero["wing_area_m2"])
+        self.g = self.aero["gravity_m_s2"]
+
+        # Mass modeling
+        ref_power = self.engine_specs["reference_power_kw"]
+        ref_weight = self.engine_specs["reference_weight_kg"]
+        self.weight_engine = scale_engine_weight(self.engine_size_kw, ref_power, ref_weight)
+        self.weight_motor = self.motor_specs["mass_kg"]
+        self.weight_battery = scale_battery_weight(self.battery_capacity_kwh, self.battery_specs["energy_density_wh_per_kg"])
+
+        self.weight_airframe = self.aero["airframe_mass_kg"]
+        self.weight_payload = self.payload_weight
+        self.mtow = self.aero["max_takeoff_weight_kg"]
+
+        self.weight_empty_and_payload = (
+            self.weight_airframe
+            + self.weight_payload
+            + self.weight_engine
+            + self.weight_motor
+            + self.weight_battery
+        )
+
+        raw_fuel = self.mtow - self.weight_empty_and_payload
+        self.fuel_initial = raw_fuel * self.initial_fuel_fraction
+
+        # Hardware limits
+        self.motor_continuous_kw = self.motor_specs["continuous_power_kw"]
+        self.motor_peak_kw = self.motor_specs["peak_power_kw"]
+        self.motor_efficiency = self.motor_specs["peak_efficiency_percent"] / 100.0
+
+        self.engine_continuous_kw = min(
+            self.engine_size_kw,
+            self.engine_specs["max_continuous_power_kw"] * (self.engine_size_kw / ref_power),
+        )
+        self.engine_peak_kw = min(
+            self.engine_size_kw * 1.25,
+            self.engine_specs["peak_power_kw"] * (self.engine_size_kw / ref_power),
+        )
+        self.sfc_base = self.engine_specs["specific_fuel_consumption_kg_per_kwh"]
+
+        self.c_rate_continuous = self.battery_specs["max_continuous_discharge_c_rate"]
+        self.c_rate_peak = self.battery_specs["max_peak_discharge_c_rate"]
+        self.soc_min = self.battery_specs.get("min_soc_limit", 0.10)
+
+        # Gymnasium Spaces
+        self.observation_space = spaces.Box(
+            low=np.array([0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32),
+            high=np.array([12000.0, 150.0, 1.0, 500.0, 500.0], dtype=np.float32),
+            dtype=np.float32,
+        )
+
+        self.action_space = spaces.Box(
+            low=np.array([0.0], dtype=np.float32),
+            high=np.array([1.0], dtype=np.float32),
+            dtype=np.float32,
+        )
+
+        self.logger = TelemetryLogger()
+
+    @property
+    def flight_log(self) -> list[dict]:
+        return self.logger.flight_log
+
+    def _load_constants(self):
+        files = {
+            "aero": "aerodynamics.json",
+            "engine_specs": "turboshaft_specs.json",
+            "battery_specs": "battery_specs.json",
+            "motor_specs": "motor_specs.json",
+        }
+        for attr, fname in files.items():
+            fpath = os.path.join(self.data_dir, fname)
+            if not os.path.exists(fpath):
+                raise FileNotFoundError(f"Data file not found: {fpath}")
+            with open(fpath, "r") as f:
+                setattr(self, attr, json.load(f))
+
+    def _get_obs(self, power_required: float) -> np.ndarray:
+        return np.array(
+            [self.altitude, self.speed, self.soc, self.fuel_remaining, power_required],
+            dtype=np.float32,
+        )
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+
+        self.altitude = 0.0
+        self.speed = 0.0
+        self.soc = self.battery_specs.get("max_soc_limit", 0.95)
+        self.fuel_remaining = max(0.0, self.fuel_initial)
+        self.time_elapsed = 0.0
+        self.current_phase = self.PHASE_TAKEOFF
+        self.deficit_counter = 0
+        self.logger.reset()
+
+        self.logger.log(
+            self.time_elapsed, self.altitude, self.speed,
+            0.0, 0.0, 0.0, 0.0, self.soc, self.fuel_remaining,
+            self.weight_empty_and_payload + self.fuel_remaining,
+            self.current_phase, 0.0, 0.5
+        )
+
+        return self._get_obs(0.0), {}
+
+    def step(self, action):
+        dt = self.dt
+
+        if self.fuel_initial <= 0.0:
+            obs = self._get_obs(0.0)
+            self.logger.log(self.time_elapsed, self.altitude, self.speed, 0.0, 0.0, 0.0, 0.0, self.soc, self.fuel_remaining, self.weight_empty_and_payload, self.current_phase, 0.0, 0.0)
+            return obs, -1000.0, True, False, {"reason": "MTOW exceeded — no fuel capacity remaining."}
+
+        # Determine Power Split Ratio
+        if self.use_heuristic_policy:
+            fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0
+            psr = heuristic_psr(self.current_phase, self.soc, fuel_ratio)
+        else:
+            psr = float(np.clip(action[0], 0.0, 1.0))
+
+        current_weight = self.weight_empty_and_payload + self.fuel_remaining
+        rho = isa_density(self.altitude, self.aero["air_density_sea_level_kg_m3"])
+        v_stall = stall_speed(current_weight, rho, self.aero["wing_area_m2"], self.g)
+
+        is_peak_phase = False
+        if self.current_phase == self.PHASE_TAKEOFF:
+            self.speed = max(1.15 * v_stall, 25.0)
+            climb_rate = 3.0
+            is_peak_phase = True
+        elif self.current_phase == self.PHASE_CLIMB:
+            self.speed = max(1.3 * v_stall, 35.0)
+            climb_rate = 5.0
+            is_peak_phase = True
+        elif self.current_phase == self.PHASE_CRUISE:
+            self.speed = max(self.target_speed_ms, 1.25 * v_stall)
+            climb_rate = 0.0
+        elif self.current_phase == self.PHASE_LOITER:
+            loiter_speed = 0.76 * self.target_speed_ms
+            self.speed = max(loiter_speed, 1.2 * v_stall)
+            climb_rate = 0.0
+        elif self.current_phase == self.PHASE_DESCENT:
+            self.speed = max(1.2 * v_stall, 30.0)
+            climb_rate = -1.5
+        elif self.current_phase == self.PHASE_LANDING:
+            self.speed = max(1.1 * v_stall, 22.0)
+            climb_rate = -0.8
+        else:
+            self.speed = 0.0
+            climb_rate = 0.0
+
+        p_req_kw, p_aero_kw, p_climb_kw = compute_power_required(
+            current_weight, self.speed, self.altitude, climb_rate, self.current_phase, self.aero, self.aspect_ratio, self.g, rho
+        )
+
+        p_motor_demand = psr * p_req_kw
+        p_engine_demand = (1.0 - psr) * p_req_kw
+
+        if self.soc <= self.soc_min:
+            p_motor = 0.0
+        else:
+            max_motor = max_battery_power(self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak, self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase)
+            p_motor = min(p_motor_demand, max_motor)
+
+        engine_max = self.engine_peak_kw if is_peak_phase else self.engine_continuous_kw
+        if self.fuel_remaining <= 0.01:
+            p_engine = 0.0
+        else:
+            p_engine = min(p_engine_demand, engine_max)
+
+        p_delivered = p_motor + p_engine
+        p_deficit = p_req_kw - p_delivered
+
+        if p_deficit > 0.01:
+            if self.soc > self.soc_min:
+                max_motor = max_battery_power(self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak, self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase)
+                extra_motor = min(p_deficit, max_motor - p_motor)
+                if extra_motor > 0:
+                    p_motor += extra_motor
+                    p_delivered += extra_motor
+                    p_deficit -= extra_motor
+
+            if self.fuel_remaining > 0.01 and p_deficit > 0.01:
+                extra_engine = min(p_deficit, engine_max - p_engine)
+                if extra_engine > 0:
+                    p_engine += extra_engine
+                    p_delivered += extra_engine
+                    p_deficit -= extra_engine
+
+        if p_deficit < 0.01:
+            p_deficit = 0.0
+
+        dt_hours = dt / 3600.0
+
+        if p_motor > 0:
+            p_batt = p_motor / self.motor_efficiency
+            energy_drawn_kwh = p_batt * dt_hours
+            soc_drain = energy_drawn_kwh / self.battery_capacity_kwh
+            self.soc = max(0.0, self.soc - soc_drain)
+
+        if p_engine > 0:
+            sfc = effective_sfc(p_engine, self.engine_continuous_kw, self.sfc_base)
+            fuel_burned = sfc * p_engine * dt_hours
+            self.fuel_remaining = max(0.0, self.fuel_remaining - fuel_burned)
+
+        self.altitude = max(0.0, self.altitude + climb_rate * dt)
+        self.time_elapsed += dt
+
+        actual_psr = min(1.0, max(0.0, p_motor / p_req_kw)) if p_req_kw > 0 else 0.0
+        self.logger.log(
+            self.time_elapsed, self.altitude, self.speed, p_req_kw, p_delivered, p_motor, p_engine,
+            self.soc, self.fuel_remaining, current_weight, self.current_phase, p_deficit, actual_psr,
+            p_aero=p_aero_kw, p_climb=p_climb_kw, climb_rate=climb_rate
+        )
+
+        fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0
+
+        if self.current_phase == self.PHASE_TAKEOFF and self.altitude >= 200.0:
+            self.current_phase = self.PHASE_CLIMB
+        elif self.current_phase == self.PHASE_CLIMB and self.altitude >= self.target_altitude:
+            self.current_phase = self.PHASE_CRUISE
+        elif self.current_phase == self.PHASE_CRUISE:
+            if self.enable_loiter:
+                if fuel_ratio < 0.40:
+                    self.current_phase = self.PHASE_LOITER
+            else:
+                if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03):
+                    self.current_phase = self.PHASE_DESCENT
+        elif self.current_phase == self.PHASE_LOITER:
+            if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03):
+                self.current_phase = self.PHASE_DESCENT
+        elif self.current_phase == self.PHASE_DESCENT and self.altitude <= 200.0:
+            self.current_phase = self.PHASE_LANDING
+        elif self.current_phase == self.PHASE_LANDING and self.altitude <= 5.0:
+            self.current_phase = self.PHASE_COMPLETED
+
+        terminated = False
+        info: dict = {}
+
+        CL_actual = 0.0
+        if self.speed > 1.0:
+            S = self.aero["wing_area_m2"]
+            CL_actual = (2.0 * current_weight * self.g) / (rho * (self.speed ** 2) * S)
+        if CL_actual > 1.6:
+            terminated = True
+            info["reason"] = f"Stall: CL={CL_actual:.2f} exceeded limit"
+
+        if self.current_phase == self.PHASE_COMPLETED:
+            terminated = True
+            info["reason"] = "Landed: Mission completed successfully"
+
+        if self.soc <= 0.01 and self.fuel_remaining <= 0.01:
+            terminated = True
+            info["reason"] = "Out of energy: Both battery and fuel fully depleted"
+
+        if p_deficit > 1.0:
+            self.deficit_counter += 1
+            if self.deficit_counter >= 3:
+                terminated = True
+                info["reason"] = f"Power deficit: Required {p_req_kw:.1f} kW, delivered {p_delivered:.1f} kW"
+        else:
+            self.deficit_counter = 0
+
+        truncated = self.time_elapsed >= 108000.0
+        if truncated:
+            info["reason"] = "Truncated: 30-hour safety limit reached"
+
+        reward = 1.0
+        if self.current_phase == self.PHASE_CRUISE:
+            reward += 2.0
+        elif self.current_phase == self.PHASE_LOITER:
+            reward += 2.5
+        elif self.current_phase == self.PHASE_COMPLETED:
+            reward += 500.0
+        if p_deficit > 0:
+            reward -= p_deficit * 10.0
+        if CL_actual > 1.6:
+            reward -= 500.0
+
+        return self._get_obs(p_req_kw), float(reward), terminated, truncated, info
