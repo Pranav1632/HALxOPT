@@ -29,6 +29,7 @@ app.add_middleware(
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
 RL_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rl_model_ppo.json"))
+RL_MODEL_PKL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rl_model_ppo.pkl"))
 
 with open(os.path.join(DATA_DIR, "motor_specs.json"), "r") as f:
     MOTOR_SPECS = json.load(f)
@@ -39,13 +40,26 @@ with open(os.path.join(DATA_DIR, "turboshaft_specs.json"), "r") as f:
 
 # Load RL agent weights if available
 rl_agent = None
-if os.path.exists(RL_MODEL_PATH):
-    try:
-        rl_agent = NumPyActorCritic(state_dim=9)
-        rl_agent.load(RL_MODEL_PATH)
-        print(f"[INIT] Loaded PPO RL neural network weights from {RL_MODEL_PATH}")
-    except Exception as err:
-        print(f"[WARN] Could not load RL model: {err}")
+
+
+def load_rl_agent_if_needed():
+    global rl_agent
+    if rl_agent is not None:
+        return rl_agent
+    for path in [RL_MODEL_PKL_PATH, RL_MODEL_PATH]:
+        if os.path.exists(path):
+            try:
+                rl_agent = NumPyActorCritic(state_dim=9)
+                rl_agent.load(path)
+                print(f"[INIT] Loaded PPO RL neural network weights from {path}")
+                return rl_agent
+            except Exception as err:
+                print(f"[WARN] Could not load RL model weights from {path}: {err}")
+    return None
+
+
+# Attempt load on startup
+load_rl_agent_if_needed()
 
 
 @app.post("/api/optimize", response_model=OptimizationResponse)
@@ -62,6 +76,7 @@ async def optimize_uav(req: OptimizationRequest):
 
     try:
         use_heuristic = (req.policy_mode != "rl")
+        agent = load_rl_agent_if_needed() if not use_heuristic else None
 
         ga_result = optimize_propulsion(
             target_speed_kmh=req.target_speed_kmh,
@@ -99,11 +114,15 @@ async def optimize_uav(req: OptimizationRequest):
         step_count = 0
 
         while not (terminated or truncated):
-            if not use_heuristic and rl_agent is not None:
-                psr_act, _ = rl_agent.get_action(obs, deterministic=True)
-                action = [psr_act]
+            if not use_heuristic and agent is not None:
+                try:
+                    psr_act, _ = agent.get_action(obs, deterministic=True)
+                    action = [psr_act]
+                except Exception as e:
+                    print(f"[WARN] RL inference step failed: {e}. Defaulting action.")
+                    action = [0.10]
             else:
-                action = [0.5]
+                action = [0.10]
 
             obs, reward, terminated, truncated, info = env.step(action)
             step_count += 1

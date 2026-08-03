@@ -90,7 +90,7 @@ export default function Dashboard() {
         policyMode,
       });
       setSpecs(data.optimal_specs);
-      setTelemetry(data.telemetry);
+      setTelemetry(data.telemetry || []);
       if (data.env_metadata) setEnvMetadata(data.env_metadata);
     } catch (err: any) {
       console.error(err);
