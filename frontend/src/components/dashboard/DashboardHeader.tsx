@@ -21,20 +21,20 @@ export default function DashboardHeader({ specs }: DashboardHeaderProps) {
       </div>
       {specs && (
         <div className="flex items-center gap-3 text-[10px] font-mono">
-          <span className="text-slate-400">
+          <span className="text-slate-400" title="Turboshaft Engine Rated Power">
             Engine: <span className="text-emerald-400 font-bold">{specs.engine_kw.toFixed(1)} kW</span>
           </span>
           <span className="text-slate-600">|</span>
-          <span className="text-slate-400">
+          <span className="text-slate-400" title="Battery Pack Energy Capacity">
             Battery: <span className="text-amber-400 font-bold">{specs.battery_kwh.toFixed(1)} kWh</span>
           </span>
           <span className="text-slate-600">|</span>
-          <span className="text-slate-400">
+          <span className="text-slate-400" title="Total Sustained Mission Endurance">
             Endurance: <span className="text-cyan-400 font-bold">{specs.endurance_hours.toFixed(2)} hrs</span>
           </span>
           <span className="text-slate-600">|</span>
-          <span className="text-slate-400">
-            MTOW: <span className="text-indigo-400 font-bold">{specs.total_weight_kg.toFixed(0)} kg</span>
+          <span className="text-slate-400" title="Maximum Takeoff Weight (MTOW)">
+            Max Takeoff Weight (MTOW): <span className="text-indigo-400 font-bold">{specs.total_weight_kg.toFixed(0)} kg</span>
           </span>
         </div>
       )}

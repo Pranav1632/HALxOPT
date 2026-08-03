@@ -142,18 +142,18 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
         </button>
       </div>
 
-      {/* Header */}
+      {/* Header with Full Form Tooltips */}
       <div className={`flex-shrink-0 grid ${GRID} gap-0 text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-[#0D1117] px-1 py-1.5 border-t-2 border-t-emerald-500/60 border-b border-slate-700/60`}>
-        <span className="text-center">Time</span>
-        <span className="text-right">P_aero</span>
-        <span className="text-right">P_climb</span>
-        <span className="text-right">P_req</span>
-        <span className="text-center">PSR</span>
-        <span className="text-right">Motor</span>
-        <span className="text-right">Engine</span>
-        <span className="text-right">SoC</span>
-        <span className="text-right">Fuel</span>
-        <span className="text-center">Phase</span>
+        <span className="text-center" title="Mission Elapsed Time">Time</span>
+        <span className="text-right cursor-help" title="Aerodynamic Drag Power (P_aero)">P_aero</span>
+        <span className="text-right cursor-help" title="Rate-of-Climb Power (P_climb)">P_climb</span>
+        <span className="text-right cursor-help" title="Total Power Required (P_req)">P_req</span>
+        <span className="text-center cursor-help" title="Power Split Ratio (PSR)">PSR</span>
+        <span className="text-right cursor-help" title="Electric Motor Delivered Power">Motor</span>
+        <span className="text-right cursor-help" title="Turboshaft Engine Shaft Power">Engine</span>
+        <span className="text-right cursor-help" title="Battery State of Charge (SoC)">SoC</span>
+        <span className="text-right cursor-help" title="Remaining Jet A-1 Fuel Mass">Fuel</span>
+        <span className="text-center" title="Current Flight Phase">Phase</span>
       </div>
       {/* Unit sub-row */}
       <div className={`flex-shrink-0 grid ${GRID} gap-0 text-[8px] text-slate-600 bg-[#0D1117] px-1 py-0.5 border-b border-slate-800/50`}>
