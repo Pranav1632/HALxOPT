@@ -87,20 +87,31 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
   const handleCopyMatrix = () => {
     if (!telemetry || telemetry.length === 0) return;
 
-    const headers = ['Time(s)', 'Phase', 'Alt(m)', 'Speed(km/h)', 'P_aero(kW)', 'P_climb(kW)', 'P_req(kW)', 'PSR(%)', 'Motor(kW)', 'Engine(kW)', 'SoC(%)', 'Fuel(kg)'];
+    // Header matches UI table column layout 1:1
+    const headers = [
+      'Time(s)',
+      'P_aero(kW)',
+      'P_climb(kW)',
+      'P_req(kW)',
+      'PSR(%)',
+      'Motor(kW)',
+      'Engine(kW)',
+      'SoC(%)',
+      'Fuel(kg)',
+      'Phase',
+    ];
+
     const rows = telemetry.map(pt => [
       pt.time.toFixed(0),
-      pt.phase,
-      pt.altitude.toFixed(1),
-      (pt.speed * 3.6).toFixed(1),
       pt.p_aero.toFixed(1),
       pt.p_climb.toFixed(1),
       pt.power_required.toFixed(1),
-      (pt.u * 100).toFixed(0),
+      (pt.u * 100).toFixed(0) + '%',
       pt.power_motor.toFixed(1),
       pt.power_engine.toFixed(1),
-      (pt.soc * 100).toFixed(1),
+      (pt.soc * 100).toFixed(1) + '%',
       pt.fuel.toFixed(1),
+      pt.phase,
     ].join('\t'));
 
     const csvContent = [headers.join('\t'), ...rows].join('\n');

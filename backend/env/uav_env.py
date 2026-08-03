@@ -1,7 +1,7 @@
 """
 UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
 Implements full 6-phase mission profile with Phase 2 & 3 Physics & RL integration.
-Dynamic climb rate scaling prevents high-altitude power deficits and ensures smooth level-off into cruise.
+Includes Battery Preservation Reward Penalties for RL Mode.
 """
 import os
 import json
@@ -322,7 +322,7 @@ class UAVHybridEnv(gym.Env):
         if p_deficit < 0.01:
             p_deficit = 0.0
 
-        # ---- Dynamic Rate-of-Climb (Fix Phantom Climb) ----
+        # ---- Dynamic Rate-of-Climb ----
         eta_prop = propeller_efficiency(self.aero, self.current_phase, speed_tas_ms=self.speed)
         if target_climb_rate > 0.0:
             excess_power_kw = (p_delivered * eta_prop) - p_aero_kw
@@ -413,10 +413,10 @@ class UAVHybridEnv(gym.Env):
         if truncated:
             info["reason"] = "Truncated: 30-hour safety limit reached"
 
-        # Dense Reward Function with SFC economy and SoC preservation
+        # Dense Reward Function with SFC economy and Battery Preservation
         sfc_load = p_engine / engine_max_base if engine_max_base > 0 else 0.0
         sfc_bonus = 0.5 * (1.0 if sfc_load >= 0.8 else sfc_load)
-        soc_bonus = 0.2 * self.soc
+        soc_bonus = 0.5 * self.soc
 
         reward = 1.0 + sfc_bonus + soc_bonus
         if self.current_phase == self.PHASE_CRUISE:
@@ -425,6 +425,15 @@ class UAVHybridEnv(gym.Env):
             reward += 2.5
         elif self.current_phase == self.PHASE_COMPLETED:
             reward += 500.0
+
+        # RL Battery Guard: Punish high PSR during climb to preserve battery
+        if self.current_phase == self.PHASE_CLIMB and actual_psr > 0.20:
+            reward -= 10.0 * (actual_psr - 0.20)
+
+        # Severe penalty if battery SoC drops below 30% in climb/cruise
+        if self.soc < 0.30 and self.current_phase in (self.PHASE_CLIMB, self.PHASE_CRUISE):
+            reward -= 25.0 * (0.30 - self.soc)
+
         if p_deficit > 0:
             reward -= p_deficit * 10.0
         if CL_actual > 1.6:
