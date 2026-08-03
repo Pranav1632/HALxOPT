@@ -1,7 +1,7 @@
 """
 UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
 Implements full 6-phase mission profile with Phase 2 & 3 Physics & RL integration.
-Includes Battery Preservation Guard to cap climb motor draw and prevent battery depletion.
+Includes Battery Preservation Guard to cap climb motor draw to 5% and preserve battery SoC > 75%.
 """
 import os
 import json
@@ -228,9 +228,9 @@ class UAVHybridEnv(gym.Env):
         else:
             psr = float(np.clip(act_val, 0.0, 1.0))
 
-        # Battery Preservation Guard: Cap motor draw in climb to max 20% of P_req
-        if self.current_phase == self.PHASE_CLIMB and psr > 0.20:
-            psr = 0.20
+        # Battery Preservation Guard: Cap motor draw in climb to max 5% of P_req to preserve battery SoC > 75%
+        if self.current_phase == self.PHASE_CLIMB and psr > 0.05:
+            psr = 0.05
 
         current_weight = self.weight_empty_and_payload + self.fuel_remaining
         rho = isa_density(self.altitude, self.rho_0, temp_sea_level_c=self.ambient_temp_sea_level_c)
@@ -431,8 +431,8 @@ class UAVHybridEnv(gym.Env):
             reward += 500.0
 
         # RL Battery Guard: Punish high PSR during climb to preserve battery
-        if self.current_phase == self.PHASE_CLIMB and actual_psr > 0.20:
-            reward -= 10.0 * (actual_psr - 0.20)
+        if self.current_phase == self.PHASE_CLIMB and actual_psr > 0.05:
+            reward -= 10.0 * (actual_psr - 0.05)
 
         # Severe penalty if battery SoC drops below 30% in climb/cruise
         if self.soc < 0.30 and self.current_phase in (self.PHASE_CLIMB, self.PHASE_CRUISE):
