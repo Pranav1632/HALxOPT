@@ -10,6 +10,10 @@ export interface OptimalSpecs {
   engine_weight_kg: number;
   motor_weight_kg: number;
   battery_weight_kg: number;
+  airframe_weight_kg?: number;
+  sfc_base?: number;
+  aspect_ratio?: number;
+  motor_efficiency_pct?: number;
 }
 
 export interface TelemetryPoint {
@@ -37,6 +41,10 @@ export interface SimulationParams {
   payloadWeight: number;
   enableLoiter: boolean;
   initialFuelFraction: number;
+  headwindKmh?: number;
+  ambientTempC?: number;
+  turbulenceLevel?: number;
+  policyMode?: string;
 }
 
 export const PHASE_BADGE: Record<string, string> = {

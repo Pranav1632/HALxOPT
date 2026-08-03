@@ -4,7 +4,7 @@ Implements shaft power requirements, Gagg-Ferrar engine altitude derating,
 SFC load degradation models, regenerative descent energy recovery, and component mass scaling.
 """
 import math
-from physics.aerodynamics import propeller_efficiency
+from physics.aerodynamics import propeller_efficiency, compute_drag_breakdown
 
 
 def gagg_ferrar_derating(rho: float, rho_0: float = 1.225) -> float:
@@ -29,29 +29,35 @@ def compute_power_required(
     aspect_ratio: float,
     g: float,
     rho: float,
+    temp_c: float = 15.0,
+    beta_rad: float = 0.0,
+    turbulence_factor: float = 1.0,
 ) -> tuple[float, float, float]:
     """
-    Compute total shaft power required using governing physics equations.
+    Compute total shaft power required using governing physics equations and dynamic drag breakdown.
     Returns: (p_shaft_kw, p_aero_kw, p_climb_kw)
     """
     if speed_ms < 1.0:
         return (0.0, 0.0, 0.0)
 
-    S = aero_specs["wing_area_m2"]
-    CD0 = aero_specs["drag_coefficient_cd0"]
-    e = aero_specs["oswald_efficiency_factor_e"]
-    AR = aspect_ratio
+    drag_info = compute_drag_breakdown(
+        weight_kg=weight_kg,
+        speed_tas_ms=speed_ms,
+        altitude_m=altitude_m,
+        climb_rate_ms=climb_rate_ms,
+        aero_specs=aero_specs,
+        aspect_ratio=aspect_ratio,
+        g=g,
+        rho=rho,
+        temp_c=temp_c,
+        beta_rad=beta_rad,
+    )
 
-    gamma = math.asin(max(-1.0, min(1.0, climb_rate_ms / speed_ms)))
-    CL = (2.0 * weight_kg * g * math.cos(gamma)) / (rho * (speed_ms ** 2) * S)
-    CL_induced_term = (CL ** 2) / (math.pi * AR * e)
-    CD = CD0 + CL_induced_term
-
-    P_aero_W = 0.5 * rho * (speed_ms ** 3) * S * CD
+    P_aero_W = drag_info["drag_force_n"] * speed_ms * turbulence_factor
     P_climb_W = weight_kg * g * climb_rate_ms
     P_prop_W = P_aero_W + P_climb_W
 
-    eta_prop = propeller_efficiency(aero_specs, phase)
+    eta_prop = propeller_efficiency(aero_specs, phase, speed_tas_ms=speed_ms)
     P_shaft_W = max(0.0, P_prop_W / eta_prop)
 
     return (P_shaft_W / 1000.0, P_aero_W / 1000.0, P_climb_W / 1000.0)

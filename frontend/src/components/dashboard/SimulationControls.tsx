@@ -13,6 +13,12 @@ interface SimulationControlsProps {
   setInitialFuelFraction: (val: number) => void;
   enableLoiter: boolean;
   setEnableLoiter: (val: boolean) => void;
+  headwindKmh: number;
+  setHeadwindKmh: (val: number) => void;
+  ambientTempC: number;
+  setAmbientTempC: (val: number) => void;
+  policyMode: string;
+  setPolicyMode: (val: string) => void;
   loading: boolean;
   loadProgress: number;
   handleOptimize: () => void;
@@ -24,13 +30,39 @@ export default function SimulationControls({
   payloadWeight, setPayloadWeight,
   initialFuelFraction, setInitialFuelFraction,
   enableLoiter, setEnableLoiter,
+  headwindKmh, setHeadwindKmh,
+  ambientTempC, setAmbientTempC,
+  policyMode, setPolicyMode,
   loading, loadProgress, handleOptimize
 }: SimulationControlsProps) {
   return (
     <div className="bg-[#0D1117] border border-slate-800/60 rounded-lg m-2 p-3 panel-enter" style={{ animationDelay: '0ms' }}>
       <h2 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-3 flex items-center gap-1.5">
-        <span>⚡</span> Simulation Constraints
+        <span>⚡</span> Simulation & Environment Controls
       </h2>
+
+      {/* Policy Mode Selector */}
+      <div className="mb-3">
+        <label className="text-[10px] text-slate-400 block mb-1">Control Strategy</label>
+        <div className="grid grid-cols-2 gap-1 bg-slate-900/60 p-1 rounded border border-slate-800/60">
+          <button
+            type="button"
+            onClick={() => setPolicyMode('heuristic')}
+            disabled={loading}
+            className={`py-1 text-[9px] font-bold rounded transition-all ${policyMode === 'heuristic' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            Zhang et al. Heuristic
+          </button>
+          <button
+            type="button"
+            onClick={() => setPolicyMode('rl')}
+            disabled={loading}
+            className={`py-1 text-[9px] font-bold rounded transition-all ${policyMode === 'rl' ? 'bg-cyan-600/30 text-cyan-300 border border-cyan-500/50' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            SAC/PPO Neural RL
+          </button>
+        </div>
+      </div>
 
       <div className="mb-3">
         <div className="flex justify-between text-[10px] mb-1">
@@ -60,6 +92,27 @@ export default function SimulationControls({
         <input type="range" min="100" max="300" step="5" value={payloadWeight}
           onChange={(e) => setPayloadWeight(parseInt(e.target.value))} disabled={loading}
           className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-emerald-500 disabled:opacity-40" />
+      </div>
+
+      {/* Environmental Controls */}
+      <div className="mb-3 pt-2 border-t border-slate-800/50">
+        <div className="flex justify-between text-[10px] mb-1">
+          <span className="text-slate-400">Headwind Velocity</span>
+          <span className="font-mono text-cyan-400 font-bold bg-cyan-950/40 px-1.5 rounded">{headwindKmh} km/h</span>
+        </div>
+        <input type="range" min="0" max="60" step="2" value={headwindKmh}
+          onChange={(e) => setHeadwindKmh(parseInt(e.target.value))} disabled={loading}
+          className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-cyan-500 disabled:opacity-40" />
+      </div>
+
+      <div className="mb-3">
+        <div className="flex justify-between text-[10px] mb-1">
+          <span className="text-slate-400">Sea-Level Temperature</span>
+          <span className="font-mono text-amber-400 font-bold bg-amber-950/40 px-1.5 rounded">{ambientTempC} °C</span>
+        </div>
+        <input type="range" min="-30" max="40" step="2" value={ambientTempC}
+          onChange={(e) => setAmbientTempC(parseInt(e.target.value))} disabled={loading}
+          className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-amber-500 disabled:opacity-40" />
       </div>
 
       <div className="mb-3">

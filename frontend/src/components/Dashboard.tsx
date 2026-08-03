@@ -24,10 +24,15 @@ export default function Dashboard() {
   const [enableLoiter, setEnableLoiter] = useState<boolean>(true);
   const [showMatrix, setShowMatrix] = useState<boolean>(true);
   const [initialFuelFraction, setInitialFuelFraction] = useState<number>(1.0);
+  const [headwindKmh, setHeadwindKmh] = useState<number>(0);
+  const [ambientTempC, setAmbientTempC] = useState<number>(15);
+  const [policyMode, setPolicyMode] = useState<string>('heuristic');
+
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [specs, setSpecs] = useState<OptimalSpecs | null>(null);
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+  const [envMetadata, setEnvMetadata] = useState<Record<string, any>>({});
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'3d' | 'charts'>('3d');
@@ -80,16 +85,20 @@ export default function Dashboard() {
         payloadWeight,
         enableLoiter,
         initialFuelFraction,
+        headwindKmh,
+        ambientTempC,
+        policyMode,
       });
       setSpecs(data.optimal_specs);
       setTelemetry(data.telemetry);
+      if (data.env_metadata) setEnvMetadata(data.env_metadata);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Backend connection failed.');
     } finally {
       setLoading(false);
     }
-  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, initialFuelFraction]);
+  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, initialFuelFraction, headwindKmh, ambientTempC, policyMode]);
 
   useEffect(() => { handleOptimize(); }, []);
 
@@ -110,8 +119,9 @@ export default function Dashboard() {
 
   const weightBreakdown = useMemo(() => {
     if (!specs) return null;
+    const airframeMass = specs.airframe_weight_kg || 350;
     return [
-      { name: 'Airframe', weight: 350, color: '#4B5563' },
+      { name: 'Airframe', weight: airframeMass, color: '#4B5563' },
       { name: 'Payload', weight: payloadWeight, color: '#6366F1' },
       { name: 'Turboshaft', weight: specs.engine_weight_kg, color: '#3B82F6' },
       { name: 'EMRAX Motor', weight: specs.motor_weight_kg, color: '#10B981' },
@@ -134,6 +144,9 @@ export default function Dashboard() {
             payloadWeight={payloadWeight} setPayloadWeight={setPayloadWeight}
             initialFuelFraction={initialFuelFraction} setInitialFuelFraction={setInitialFuelFraction}
             enableLoiter={enableLoiter} setEnableLoiter={setEnableLoiter}
+            headwindKmh={headwindKmh} setHeadwindKmh={setHeadwindKmh}
+            ambientTempC={ambientTempC} setAmbientTempC={setAmbientTempC}
+            policyMode={policyMode} setPolicyMode={setPolicyMode}
             loading={loading} loadProgress={loadProgress} handleOptimize={handleOptimize}
           />
 
@@ -150,7 +163,7 @@ export default function Dashboard() {
           )}
 
           {specs && !loading && (
-            <SystemConstantsWidget />
+            <SystemConstantsWidget specs={specs} envMetadata={envMetadata} />
           )}
 
           {error && (

@@ -5,6 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 export interface OptimizationResponseData {
   optimal_specs: OptimalSpecs;
   telemetry: TelemetryPoint[];
+  env_metadata?: Record<string, any>;
 }
 
 export async function fetchOptimizationResults(params: SimulationParams): Promise<OptimizationResponseData> {
@@ -17,6 +18,10 @@ export async function fetchOptimizationResults(params: SimulationParams): Promis
       payload_weight: params.payloadWeight,
       enable_loiter: params.enableLoiter,
       initial_fuel_fraction: params.initialFuelFraction,
+      headwind_kmh: params.headwindKmh ?? 0.0,
+      ambient_temp_c: params.ambientTempC ?? 15.0,
+      turbulence_level: params.turbulenceLevel ?? 0.0,
+      policy_mode: params.policyMode ?? 'heuristic',
     }),
   });
 
