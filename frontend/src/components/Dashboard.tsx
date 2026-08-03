@@ -289,9 +289,6 @@ export default function Dashboard() {
 
             {showMatrix && (
               <div className="w-[620px] flex-shrink-0 border-l border-slate-800/60 bg-[#0D1117] flex flex-col overflow-hidden">
-                <div className="h-7 flex-shrink-0 flex items-center px-2 border-b border-slate-800/40">
-                  <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em]">Propulsion Status Matrix — kW</h3>
-                </div>
                 <TelemetryTable
                   telemetry={telemetry}
                   currentIndex={currentIndex}

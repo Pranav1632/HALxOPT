@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 interface TelemetryPoint {
   time: number;
@@ -56,10 +56,8 @@ function downsampleIndices(total: number, maxRows: number): number[] {
   return indices;
 }
 
-// Linearly interpolate a hex color between green and red by fraction (0=green,1=red)
 function fuelColor(fuel: number, maxFuel: number): string {
   const frac = 1 - Math.max(0, Math.min(1, fuel / maxFuel));
-  // green (#10b981) → red (#ef4444)
   const r = Math.round(16 + frac * (239 - 16));
   const g = Math.round(185 + frac * (68 - 185));
   const b = Math.round(129 + frac * (68 - 129));
@@ -67,6 +65,7 @@ function fuelColor(fuel: number, maxFuel: number): string {
 }
 
 export default function TelemetryTable({ telemetry, currentIndex, onIndexChange }: TelemetryTableProps) {
+  const [copied, setCopied] = useState<boolean>(false);
   const displayIndices = useMemo(() => downsampleIndices(telemetry.length, 120), [telemetry.length]);
 
   const maxFuel = useMemo(() => {
@@ -84,6 +83,34 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
     }
     return closest;
   }, [displayIndices, currentIndex]);
+
+  const handleCopyMatrix = () => {
+    if (!telemetry || telemetry.length === 0) return;
+
+    const headers = ['Time(s)', 'Phase', 'Alt(m)', 'Speed(km/h)', 'P_aero(kW)', 'P_climb(kW)', 'P_req(kW)', 'PSR(%)', 'Motor(kW)', 'Engine(kW)', 'SoC(%)', 'Fuel(kg)'];
+    const rows = telemetry.map(pt => [
+      pt.time.toFixed(0),
+      pt.phase,
+      pt.altitude.toFixed(1),
+      (pt.speed * 3.6).toFixed(1),
+      pt.p_aero.toFixed(1),
+      pt.p_climb.toFixed(1),
+      pt.power_required.toFixed(1),
+      (pt.u * 100).toFixed(0),
+      pt.power_motor.toFixed(1),
+      pt.power_engine.toFixed(1),
+      (pt.soc * 100).toFixed(1),
+      pt.fuel.toFixed(1),
+    ].join('\t'));
+
+    const csvContent = [headers.join('\t'), ...rows].join('\n');
+    navigator.clipboard.writeText(csvContent).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(err => {
+      console.error('Copy failed:', err);
+    });
+  };
 
   if (!telemetry || telemetry.length === 0) {
     return (
@@ -103,7 +130,18 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
   const GRID = 'grid-cols-[60px_58px_58px_58px_52px_58px_58px_52px_62px_70px]';
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
+    <div className="w-full h-full flex flex-col overflow-hidden select-text">
+      {/* Matrix Header Action Bar */}
+      <div className="h-7 flex-shrink-0 flex items-center justify-between px-2 bg-[#0D1117] border-b border-slate-800/40">
+        <h3 className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em]">Propulsion Status Matrix — kW</h3>
+        <button
+          onClick={handleCopyMatrix}
+          className="px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider rounded border border-slate-700/60 text-emerald-400 bg-emerald-950/30 hover:bg-emerald-900/50 hover:border-emerald-500/60 transition-all flex items-center gap-1"
+        >
+          {copied ? '✓ COPIED ALL MATRIX DATA!' : '📋 COPY MATRIX'}
+        </button>
+      </div>
+
       {/* Header */}
       <div className={`flex-shrink-0 grid ${GRID} gap-0 text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-[#0D1117] px-1 py-1.5 border-t-2 border-t-emerald-500/60 border-b border-slate-700/60`}>
         <span className="text-center">Time</span>
@@ -144,7 +182,7 @@ export default function TelemetryTable({ telemetry, currentIndex, onIndexChange 
             <div
               key={idx}
               onClick={() => onIndexChange(idx)}
-              className={`grid ${GRID} gap-0 text-[10px] font-mono px-1 py-[3px] cursor-pointer border-b border-slate-800/30 transition-colors duration-75
+              className={`grid ${GRID} gap-0 text-[10px] font-mono px-1 py-[3px] cursor-pointer border-b border-slate-800/30 transition-colors duration-75 select-text
                 odd:bg-slate-900/20
                 ${isActive
                   ? 'bg-emerald-950/20 border-l-2 border-l-emerald-500 text-emerald-100'
