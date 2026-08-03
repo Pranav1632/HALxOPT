@@ -10,58 +10,64 @@ export default function UAVMarker({ position, nextPosition, telemetryPt }: {
   nextPosition: THREE.Vector3 | null;
   telemetryPt: TelemetryPoint | null;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
 
   useFrame(() => {
-    if (!meshRef.current) return;
-    meshRef.current.position.copy(position);
+    if (!groupRef.current) return;
+    groupRef.current.position.copy(position);
     if (nextPosition) {
       const dir = new THREE.Vector3().subVectors(nextPosition, position).normalize();
       if (dir.length() > 0.001) {
         const q = new THREE.Quaternion();
         q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        meshRef.current.quaternion.copy(q);
+        groupRef.current.quaternion.copy(q);
       }
     }
   });
 
   return (
-    <group>
-      <mesh ref={meshRef} position={position}>
+    <group ref={groupRef}>
+      <mesh>
         <coneGeometry args={[1.8, 5, 4]} />
         <meshStandardMaterial color="#F59E0B" emissive="#F59E0B" emissiveIntensity={0.6} flatShading />
       </mesh>
 
       {telemetryPt && (
         <Html
-          position={[position.x, position.y + 3, position.z]}
+          position={[0, 4, 0]}
           center
           style={{ pointerEvents: 'none' }}
         >
           <div style={{
-            background: '#0B0F19D0',
-            border: '1px solid #F59E0B50',
-            borderRadius: '4px',
-            padding: '4px 8px',
+            background: 'rgba(11, 15, 25, 0.88)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(245, 158, 11, 0.5)',
+            borderRadius: '6px',
+            padding: '5px 10px',
             whiteSpace: 'nowrap',
             fontSize: '10px',
             fontFamily: 'monospace',
             color: '#E5E7EB',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1px',
-            minWidth: '120px',
+            gap: '2px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-              <span style={{ color: '#9CA3AF', fontSize: '8px' }}>ALT</span>
-              <span style={{ color: '#10B981', fontWeight: 700 }}>{telemetryPt.altitude.toFixed(0)}m</span>
+              <span style={{ color: '#9CA3AF', fontSize: '9px', fontWeight: 600 }}>TACTICAL UAV</span>
+              <span style={{ color: '#F59E0B', fontWeight: 700, fontSize: '9px' }}>{telemetryPt.phase.toUpperCase()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-              <span style={{ color: '#9CA3AF', fontSize: '8px' }}>TAS</span>
+              <span style={{ color: '#9CA3AF', fontSize: '9px' }}>ALT</span>
+              <span style={{ color: '#10B981', fontWeight: 700 }}>{telemetryPt.altitude.toFixed(0)} m</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+              <span style={{ color: '#9CA3AF', fontSize: '9px' }}>SPEED</span>
               <span style={{ color: '#06B6D4', fontWeight: 700 }}>{(telemetryPt.speed * 3.6).toFixed(0)} km/h</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-              <span style={{ color: '#9CA3AF', fontSize: '8px' }}>PSR</span>
+              <span style={{ color: '#9CA3AF', fontSize: '9px' }}>PSR (SPLIT)</span>
               <span style={{ color: telemetryPt.u > 0.3 ? '#F59E0B' : '#10B981', fontWeight: 700 }}>
                 {(telemetryPt.u * 100).toFixed(0)}%
               </span>

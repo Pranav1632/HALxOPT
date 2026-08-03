@@ -11,6 +11,7 @@ from schemas import OptimizationRequest, OptimizationResponse, OptimalSpecs, Tel
 from ga import optimize_propulsion
 from env import UAVHybridEnv
 from rl import generate_shap_audit_summary
+from rl.ppo_agent import NumPyActorCritic
 
 app = FastAPI(
     title="AeroOptima — Hybrid-Electric UAV Propulsion Optimization API",
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+RL_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rl_model_ppo.json"))
 
 with open(os.path.join(DATA_DIR, "motor_specs.json"), "r") as f:
     MOTOR_SPECS = json.load(f)
@@ -34,6 +36,16 @@ with open(os.path.join(DATA_DIR, "aerodynamics.json"), "r") as f:
     AERO_SPECS = json.load(f)
 with open(os.path.join(DATA_DIR, "turboshaft_specs.json"), "r") as f:
     TURBOSHAFT_SPECS = json.load(f)
+
+# Load RL agent weights if available
+rl_agent = None
+if os.path.exists(RL_MODEL_PATH):
+    try:
+        rl_agent = NumPyActorCritic(state_dim=9)
+        rl_agent.load(RL_MODEL_PATH)
+        print(f"[INIT] Loaded PPO RL neural network weights from {RL_MODEL_PATH}")
+    except Exception as err:
+        print(f"[WARN] Could not load RL model: {err}")
 
 
 @app.post("/api/optimize", response_model=OptimizationResponse)
@@ -77,13 +89,23 @@ async def optimize_uav(req: OptimizationRequest):
             dt=60.0,
             enable_loiter=req.enable_loiter,
             initial_fuel_fraction=req.initial_fuel_fraction,
+            headwind_kmh=req.headwind_kmh,
+            ambient_temp_c=req.ambient_temp_c,
+            turbulence_level=req.turbulence_level,
         )
 
         obs, info = env.reset()
         terminated, truncated = False, False
         step_count = 0
+
         while not (terminated or truncated):
-            obs, reward, terminated, truncated, info = env.step([0.5])
+            if not use_heuristic and rl_agent is not None:
+                psr_act, _ = rl_agent.get_action(obs, deterministic=True)
+                action = [psr_act]
+            else:
+                action = [0.5]
+
+            obs, reward, terminated, truncated, info = env.step(action)
             step_count += 1
 
         specs = OptimalSpecs(
