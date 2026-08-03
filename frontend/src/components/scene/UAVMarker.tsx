@@ -75,7 +75,7 @@ export default function UAVMarker({ position, nextPosition, telemetryPt }: {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                 <span style={{ color: '#9CA3AF', fontSize: '9px' }}>SPEED</span>
-                <span style={{ color: '#06B6D4', fontWeight 700 }}>{(telemetryPt.speed * 3.6).toFixed(0)} km/h</span>
+                <span style={{ color: '#06B6D4', fontWeight: 700 }}>{(telemetryPt.speed * 3.6).toFixed(0)} km/h</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                 <span style={{ color: '#9CA3AF', fontSize: '9px' }}>PSR (SPLIT)</span>
