@@ -1,6 +1,10 @@
 """
 UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
-Assembles physics sub-modules (atmosphere, aerodynamics, propulsion, battery), policy, and telemetry.
+Implements full 6-phase mission profile with Phase 2 High-Altitude Environmental Realism:
+  - Dynamic Rate-of-Climb (fixes Phantom Climb bug)
+  - Gagg-Ferrar Engine Altitude Power Derating
+  - Sub-zero Battery Thermal Capacity & Voltage Sag Derating
+  - Regenerative Descent Energy Recovery Model (~8.25 kWh max)
 """
 import os
 import json
@@ -10,13 +14,18 @@ from gymnasium import spaces
 
 from physics import (
     isa_density,
+    isa_temperature,
     compute_aspect_ratio,
     stall_speed,
+    propeller_efficiency,
     compute_power_required,
+    gagg_ferrar_derating,
+    compute_regenerative_power,
     effective_sfc,
     scale_engine_weight,
     scale_battery_weight,
     max_battery_power,
+    battery_temperature_penalty,
 )
 from policy import heuristic_psr
 from env.telemetry import TelemetryLogger
@@ -71,6 +80,7 @@ class UAVHybridEnv(gym.Env):
 
         self.aspect_ratio = compute_aspect_ratio(self.aero["wingspan_m"], self.aero["wing_area_m2"])
         self.g = self.aero["gravity_m_s2"]
+        self.rho_0 = self.aero["air_density_sea_level_kg_m3"]
 
         # Mass modeling
         ref_power = self.engine_specs["reference_power_kw"]
@@ -99,11 +109,11 @@ class UAVHybridEnv(gym.Env):
         self.motor_peak_kw = self.motor_specs["peak_power_kw"]
         self.motor_efficiency = self.motor_specs["peak_efficiency_percent"] / 100.0
 
-        self.engine_continuous_kw = min(
+        self.engine_continuous_kw_base = min(
             self.engine_size_kw,
             self.engine_specs["max_continuous_power_kw"] * (self.engine_size_kw / ref_power),
         )
-        self.engine_peak_kw = min(
+        self.engine_peak_kw_base = min(
             self.engine_size_kw * 1.25,
             self.engine_specs["peak_power_kw"] * (self.engine_size_kw / ref_power),
         )
@@ -189,49 +199,61 @@ class UAVHybridEnv(gym.Env):
             psr = float(np.clip(action[0], 0.0, 1.0))
 
         current_weight = self.weight_empty_and_payload + self.fuel_remaining
-        rho = isa_density(self.altitude, self.aero["air_density_sea_level_kg_m3"])
+        rho = isa_density(self.altitude, self.rho_0)
+        temp_c = isa_temperature(self.altitude)
+        temp_penalty = battery_temperature_penalty(temp_c)
+        effective_batt_cap = self.battery_capacity_kwh * temp_penalty
+
         v_stall = stall_speed(current_weight, rho, self.aero["wing_area_m2"], self.g)
 
         is_peak_phase = False
         if self.current_phase == self.PHASE_TAKEOFF:
             self.speed = max(1.15 * v_stall, 25.0)
-            climb_rate = 3.0
+            target_climb_rate = 3.0
             is_peak_phase = True
         elif self.current_phase == self.PHASE_CLIMB:
             self.speed = max(1.3 * v_stall, 35.0)
-            climb_rate = 5.0
+            target_climb_rate = 5.0
             is_peak_phase = True
         elif self.current_phase == self.PHASE_CRUISE:
             self.speed = max(self.target_speed_ms, 1.25 * v_stall)
-            climb_rate = 0.0
+            target_climb_rate = 0.0
         elif self.current_phase == self.PHASE_LOITER:
             loiter_speed = 0.76 * self.target_speed_ms
             self.speed = max(loiter_speed, 1.2 * v_stall)
-            climb_rate = 0.0
+            target_climb_rate = 0.0
         elif self.current_phase == self.PHASE_DESCENT:
             self.speed = max(1.2 * v_stall, 30.0)
-            climb_rate = -1.5
+            target_climb_rate = -1.5
         elif self.current_phase == self.PHASE_LANDING:
             self.speed = max(1.1 * v_stall, 22.0)
-            climb_rate = -0.8
+            target_climb_rate = -0.8
         else:
             self.speed = 0.0
-            climb_rate = 0.0
+            target_climb_rate = 0.0
 
         p_req_kw, p_aero_kw, p_climb_kw = compute_power_required(
-            current_weight, self.speed, self.altitude, climb_rate, self.current_phase, self.aero, self.aspect_ratio, self.g, rho
+            current_weight, self.speed, self.altitude, target_climb_rate, self.current_phase, self.aero, self.aspect_ratio, self.g, rho
         )
 
         p_motor_demand = psr * p_req_kw
         p_engine_demand = (1.0 - psr) * p_req_kw
 
+        # Motor limit (with sub-zero thermal derating)
         if self.soc <= self.soc_min:
             p_motor = 0.0
         else:
-            max_motor = max_battery_power(self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak, self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase)
+            max_motor = max_battery_power(
+                self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak,
+                self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase, temp_penalty=temp_penalty
+            )
             p_motor = min(p_motor_demand, max_motor)
 
-        engine_max = self.engine_peak_kw if is_peak_phase else self.engine_continuous_kw
+        # Engine limit (Gagg-Ferrar altitude derating applied)
+        engine_derate = gagg_ferrar_derating(rho, self.rho_0)
+        engine_max_base = self.engine_peak_kw_base if is_peak_phase else self.engine_continuous_kw_base
+        engine_max = engine_max_base * engine_derate
+
         if self.fuel_remaining <= 0.01:
             p_engine = 0.0
         else:
@@ -242,7 +264,10 @@ class UAVHybridEnv(gym.Env):
 
         if p_deficit > 0.01:
             if self.soc > self.soc_min:
-                max_motor = max_battery_power(self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak, self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase)
+                max_motor = max_battery_power(
+                    self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak,
+                    self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase, temp_penalty=temp_penalty
+                )
                 extra_motor = min(p_deficit, max_motor - p_motor)
                 if extra_motor > 0:
                     p_motor += extra_motor
@@ -259,16 +284,33 @@ class UAVHybridEnv(gym.Env):
         if p_deficit < 0.01:
             p_deficit = 0.0
 
+        # ---- Task 2.1: Dynamic Rate-of-Climb (Fix Phantom Climb) ----
+        eta_prop = propeller_efficiency(self.aero, self.current_phase)
+        if target_climb_rate > 0.0:
+            excess_power_kw = (p_delivered * eta_prop) - p_aero_kw
+            max_roc = (excess_power_kw * 1000.0) / (current_weight * self.g)
+            climb_rate = max(-3.0, min(target_climb_rate, max_roc))
+        else:
+            climb_rate = target_climb_rate
+
+        # ---- Resource Consumption & Task 2.4 Regenerative Recovery ----
         dt_hours = dt / 3600.0
+
+        # Regenerative descent recovery
+        p_regen_kw = compute_regenerative_power(current_weight, climb_rate) if climb_rate < 0 else 0.0
 
         if p_motor > 0:
             p_batt = p_motor / self.motor_efficiency
-            energy_drawn_kwh = p_batt * dt_hours
-            soc_drain = energy_drawn_kwh / self.battery_capacity_kwh
-            self.soc = max(0.0, self.soc - soc_drain)
+            energy_drawn_kwh = (p_batt - p_regen_kw) * dt_hours
+            soc_change = energy_drawn_kwh / effective_batt_cap
+            self.soc = max(0.0, min(1.0, self.soc - soc_change))
+        elif p_regen_kw > 0:
+            energy_recovered_kwh = p_regen_kw * dt_hours
+            soc_recovered = energy_recovered_kwh / effective_batt_cap
+            self.soc = min(1.0, self.soc + soc_recovered)
 
         if p_engine > 0:
-            sfc = effective_sfc(p_engine, self.engine_continuous_kw, self.sfc_base)
+            sfc = effective_sfc(p_engine, engine_max_base, self.sfc_base)
             fuel_burned = sfc * p_engine * dt_hours
             self.fuel_remaining = max(0.0, self.fuel_remaining - fuel_burned)
 

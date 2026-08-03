@@ -1,5 +1,6 @@
 """
 ISA Standard Atmosphere Model for UAV Simulation.
+Implements air density and temperature lapse models.
 """
 import math
 
@@ -17,3 +18,14 @@ def isa_density(altitude_m: float, rho_0: float = 1.225) -> float:
     else:
         rho = 0.3639 * math.exp(-(altitude_m - 11000.0) / 6341.6)
     return max(0.05, rho)
+
+
+def isa_temperature(altitude_m: float) -> float:
+    """
+    Return ambient temperature in °C at given altitude using standard ISA lapse rate.
+    Troposphere: T = 15.0 - 0.0065 · altitude_m
+    """
+    if altitude_m < 11000.0:
+        return 15.0 - 0.0065 * altitude_m
+    else:
+        return -56.5

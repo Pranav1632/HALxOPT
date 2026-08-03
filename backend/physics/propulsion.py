@@ -1,9 +1,22 @@
 """
 Propulsion Physics Module.
-Implements shaft power requirements, SFC load degradation models, and component mass scaling.
+Implements shaft power requirements, Gagg-Ferrar engine altitude derating,
+SFC load degradation models, regenerative descent energy recovery, and component mass scaling.
 """
 import math
 from physics.aerodynamics import propeller_efficiency
+
+
+def gagg_ferrar_derating(rho: float, rho_0: float = 1.225) -> float:
+    """
+    Gagg-Ferrar altitude engine shaft power derating model for naturally aspirated / un-supercharged engines.
+    P_alt / P_SL = sigma - (1 - sigma) / 7.55
+    """
+    if rho_0 <= 0:
+        return 1.0
+    sigma = rho / rho_0
+    factor = sigma - (1.0 - sigma) / 7.55
+    return max(0.15, min(1.0, factor))
 
 
 def compute_power_required(
@@ -44,6 +57,23 @@ def compute_power_required(
     return (P_shaft_W / 1000.0, P_aero_W / 1000.0, P_climb_W / 1000.0)
 
 
+def compute_regenerative_power(
+    weight_kg: float,
+    climb_rate_ms: float,
+    gen_efficiency: float = 0.85,
+) -> float:
+    """
+    Compute electrical energy recovery (kW) generated during glide descent.
+    P_regen = gen_efficiency · m · g · |v_descent|
+    """
+    if climb_rate_ms >= 0:
+        return 0.0
+    descent_speed_ms = abs(climb_rate_ms)
+    p_pot_w = weight_kg * 9.81 * descent_speed_ms
+    p_regen_w = p_pot_w * gen_efficiency
+    return p_regen_w / 1000.0
+
+
 def effective_sfc(engine_power_kw: float, engine_continuous_kw: float, sfc_base: float) -> float:
     """
     Apply partial-load penalty to SFC.
@@ -53,7 +83,7 @@ def effective_sfc(engine_power_kw: float, engine_continuous_kw: float, sfc_base:
         return sfc_base
     load_fraction = engine_power_kw / engine_continuous_kw
     if load_fraction >= 0.8:
-        return sfc_base  # Optimal SFC
+        return sfc_base
     elif load_fraction >= 0.5:
         penalty = 1.0 + 0.15 * (0.8 - load_fraction) / 0.3
         return sfc_base * penalty
