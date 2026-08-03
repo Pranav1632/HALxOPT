@@ -1,6 +1,7 @@
 """
 UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
 Implements full 6-phase mission profile with Phase 2 & 3 Physics & RL integration.
+Dynamic climb rate scaling prevents high-altitude power deficits and ensures smooth level-off into cruise.
 """
 import os
 import json
@@ -242,8 +243,9 @@ class UAVHybridEnv(gym.Env):
             is_peak_phase = True
         elif self.current_phase == self.PHASE_CLIMB:
             self.speed = max(1.3 * v_stall, 35.0)
-            target_climb_rate = 5.0
-            is_peak_phase = True
+            alt_frac = min(1.0, self.altitude / max(1.0, self.target_altitude))
+            target_climb_rate = max(1.8, 4.5 * (1.0 - 0.6 * alt_frac))
+            is_peak_phase = (alt_frac < 0.4)
         elif self.current_phase == self.PHASE_CRUISE:
             self.speed = max(self.target_speed_ms, 1.25 * v_stall)
             target_climb_rate = 0.0
@@ -320,7 +322,7 @@ class UAVHybridEnv(gym.Env):
         if p_deficit < 0.01:
             p_deficit = 0.0
 
-        # ---- Task 2.1: Dynamic Rate-of-Climb (Fix Phantom Climb) ----
+        # ---- Dynamic Rate-of-Climb (Fix Phantom Climb) ----
         eta_prop = propeller_efficiency(self.aero, self.current_phase, speed_tas_ms=self.speed)
         if target_climb_rate > 0.0:
             excess_power_kw = (p_delivered * eta_prop) - p_aero_kw

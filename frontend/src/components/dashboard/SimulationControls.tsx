@@ -51,7 +51,7 @@ export default function SimulationControls({
             disabled={loading}
             className={`py-1 text-[9px] font-bold rounded transition-all ${policyMode === 'heuristic' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/50' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            Zhang et al. Heuristic
+            Baseline Heuristic
           </button>
           <button
             type="button"

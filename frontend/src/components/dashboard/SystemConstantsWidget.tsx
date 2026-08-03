@@ -12,7 +12,7 @@ export default function SystemConstantsWidget({ specs, envMetadata }: SystemCons
   const aspect_ratio = specs.aspect_ratio || 16.07;
   const sfc = specs.sfc_base || 0.38;
   const motor_eff = specs.motor_efficiency_pct || 96.0;
-  const policy = envMetadata?.policy_mode === 'rl' ? 'SAC/PPO Neural RL' : 'Zhang et al. Heuristic';
+  const policy = envMetadata?.policy_mode === 'rl' ? 'SAC/PPO Neural RL' : 'Baseline Heuristic';
   const headwind = envMetadata?.headwind_kmh || 0;
   const temp_c = envMetadata?.ambient_temp_c ?? 15;
 

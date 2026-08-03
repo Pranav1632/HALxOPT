@@ -1,6 +1,6 @@
 """
 RL Policy Benchmarking & Evaluation Accuracy Script.
-Compares trained PPO RL agent performance vs baseline Zhang et al. heuristic across base and GA-sized engine configurations.
+Compares trained PPO RL agent performance vs baseline heuristic across base and GA-sized engine configurations.
 """
 import os
 import sys
@@ -32,7 +32,7 @@ def benchmark_rl_vs_heuristic(engine_kw: float = 120.0, battery_kwh: float = 20.
     dur_h = env_h.time_elapsed / 3600.0
     soc_h = env_h.soc * 100.0
     fuel_h = env_h.fuel_remaining
-    print(f"\n[Baseline Zhang et al. Heuristic Policy]")
+    print(f"\n[Baseline Rule-Based Heuristic Policy]")
     print(f"  * Total Flight Duration : {dur_h:.2f} hours")
     print(f"  * Final State of Charge : {soc_h:.1f}%")
     print(f"  * Remaining Fuel Weight : {fuel_h:.2f} kg")
