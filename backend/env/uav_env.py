@@ -1,10 +1,6 @@
 """
 UAVHybridEnv — Custom Gymnasium Environment for Hybrid-Electric Fixed-Wing UAV Simulation.
-Implements full 6-phase mission profile with Phase 2 High-Altitude Environmental Realism:
-  - Dynamic Rate-of-Climb (fixes Phantom Climb bug)
-  - Gagg-Ferrar Engine Altitude Power Derating
-  - Sub-zero Battery Thermal Capacity & Voltage Sag Derating
-  - Regenerative Descent Energy Recovery Model (~8.25 kWh max)
+Implements full 6-phase mission profile with Phase 2 & 3 Physics & RL integration.
 """
 import os
 import json
@@ -26,16 +22,13 @@ from physics import (
     scale_battery_weight,
     max_battery_power,
     battery_temperature_penalty,
+    compute_wind_effects,
 )
 from policy import heuristic_psr
 from env.telemetry import TelemetryLogger
 
 
 class UAVHybridEnv(gym.Env):
-    """
-    Custom Gymnasium environment for Hybrid-Electric Fixed-Wing UAV.
-    Implements full 6-phase mission profile: Takeoff → Climb → Cruise → Loiter → Descent → Landing.
-    """
     metadata = {"render_modes": ["human"]}
 
     PHASE_TAKEOFF = "takeoff"
@@ -58,6 +51,9 @@ class UAVHybridEnv(gym.Env):
         dt: float = 10.0,
         enable_loiter: bool = True,
         initial_fuel_fraction: float = 1.0,
+        headwind_kmh: float = 0.0,
+        ambient_temp_c: float = 15.0,
+        turbulence_level: float = 0.0,
     ):
         super().__init__()
 
@@ -70,6 +66,10 @@ class UAVHybridEnv(gym.Env):
         self.dt = dt
         self.enable_loiter = enable_loiter
         self.initial_fuel_fraction = max(0.1, min(1.0, initial_fuel_fraction))
+
+        self.headwind_ms = headwind_kmh / 3.6
+        self.ambient_temp_sea_level_c = ambient_temp_c
+        self.turbulence_level = turbulence_level
 
         if data_dir is None:
             self.data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
@@ -123,10 +123,10 @@ class UAVHybridEnv(gym.Env):
         self.c_rate_peak = self.battery_specs["max_peak_discharge_c_rate"]
         self.soc_min = self.battery_specs.get("min_soc_limit", 0.10)
 
-        # Gymnasium Spaces
+        # Gymnasium Spaces (9D Observation Space)
         self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32),
-            high=np.array([12000.0, 150.0, 1.0, 500.0, 500.0], dtype=np.float32),
+            low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -50.0, 0.0], dtype=np.float32),
+            high=np.array([12000.0, 150.0, 1.0, 1.0, 500.0, 1.5, 1.5, 50.0, 6.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -156,9 +156,33 @@ class UAVHybridEnv(gym.Env):
             with open(fpath, "r") as f:
                 setattr(self, attr, json.load(f))
 
-    def _get_obs(self, power_required: float) -> np.ndarray:
+    def _phase_to_id(self, phase: str) -> float:
+        mapping = {
+            self.PHASE_TAKEOFF: 1.0,
+            self.PHASE_CLIMB: 2.0,
+            self.PHASE_CRUISE: 3.0,
+            self.PHASE_LOITER: 4.0,
+            self.PHASE_DESCENT: 5.0,
+            self.PHASE_LANDING: 6.0,
+            self.PHASE_COMPLETED: 0.0,
+        }
+        return mapping.get(phase, 0.0)
+
+    def _get_obs(self, power_required: float, rho: float = 1.225, temp_c: float = 15.0) -> np.ndarray:
+        fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0.0
+        engine_load = 0.0
         return np.array(
-            [self.altitude, self.speed, self.soc, self.fuel_remaining, power_required],
+            [
+                self.altitude,
+                self.speed,
+                self.soc,
+                fuel_ratio,
+                power_required,
+                engine_load,
+                rho,
+                temp_c,
+                self._phase_to_id(self.current_phase),
+            ],
             dtype=np.float32,
         )
 
@@ -191,16 +215,21 @@ class UAVHybridEnv(gym.Env):
             self.logger.log(self.time_elapsed, self.altitude, self.speed, 0.0, 0.0, 0.0, 0.0, self.soc, self.fuel_remaining, self.weight_empty_and_payload, self.current_phase, 0.0, 0.0)
             return obs, -1000.0, True, False, {"reason": "MTOW exceeded — no fuel capacity remaining."}
 
-        # Determine Power Split Ratio
+        # Parse action scalar vs array
+        if isinstance(action, (float, int, np.floating)):
+            act_val = float(action)
+        else:
+            act_val = float(action[0])
+
         if self.use_heuristic_policy:
             fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0
             psr = heuristic_psr(self.current_phase, self.soc, fuel_ratio)
         else:
-            psr = float(np.clip(action[0], 0.0, 1.0))
+            psr = float(np.clip(act_val, 0.0, 1.0))
 
         current_weight = self.weight_empty_and_payload + self.fuel_remaining
-        rho = isa_density(self.altitude, self.rho_0)
-        temp_c = isa_temperature(self.altitude)
+        rho = isa_density(self.altitude, self.rho_0, temp_sea_level_c=self.ambient_temp_sea_level_c)
+        temp_c = isa_temperature(self.altitude, temp_sea_level_c=self.ambient_temp_sea_level_c)
         temp_penalty = battery_temperature_penalty(temp_c)
         effective_batt_cap = self.battery_capacity_kwh * temp_penalty
 
@@ -232,8 +261,15 @@ class UAVHybridEnv(gym.Env):
             self.speed = 0.0
             target_climb_rate = 0.0
 
+        wind_info = compute_wind_effects(
+            speed_tas_ms=self.speed,
+            headwind_ms=self.headwind_ms,
+            turbulence_intensity=self.turbulence_level,
+        )
+
         p_req_kw, p_aero_kw, p_climb_kw = compute_power_required(
-            current_weight, self.speed, self.altitude, target_climb_rate, self.current_phase, self.aero, self.aspect_ratio, self.g, rho
+            current_weight, self.speed, self.altitude, target_climb_rate, self.current_phase, self.aero, self.aspect_ratio, self.g, rho,
+            temp_c=temp_c, beta_rad=wind_info["beta_rad"], turbulence_factor=wind_info["turbulence_factor"]
         )
 
         p_motor_demand = psr * p_req_kw
@@ -285,7 +321,7 @@ class UAVHybridEnv(gym.Env):
             p_deficit = 0.0
 
         # ---- Task 2.1: Dynamic Rate-of-Climb (Fix Phantom Climb) ----
-        eta_prop = propeller_efficiency(self.aero, self.current_phase)
+        eta_prop = propeller_efficiency(self.aero, self.current_phase, speed_tas_ms=self.speed)
         if target_climb_rate > 0.0:
             excess_power_kw = (p_delivered * eta_prop) - p_aero_kw
             max_roc = (excess_power_kw * 1000.0) / (current_weight * self.g)
@@ -296,7 +332,6 @@ class UAVHybridEnv(gym.Env):
         # ---- Resource Consumption & Task 2.4 Regenerative Recovery ----
         dt_hours = dt / 3600.0
 
-        # Regenerative descent recovery
         p_regen_kw = compute_regenerative_power(current_weight, climb_rate) if climb_rate < 0 else 0.0
 
         if p_motor > 0:
@@ -376,7 +411,12 @@ class UAVHybridEnv(gym.Env):
         if truncated:
             info["reason"] = "Truncated: 30-hour safety limit reached"
 
-        reward = 1.0
+        # Dense Reward Function with SFC economy and SoC preservation
+        sfc_load = p_engine / engine_max_base if engine_max_base > 0 else 0.0
+        sfc_bonus = 0.5 * (1.0 if sfc_load >= 0.8 else sfc_load)
+        soc_bonus = 0.2 * self.soc
+
+        reward = 1.0 + sfc_bonus + soc_bonus
         if self.current_phase == self.PHASE_CRUISE:
             reward += 2.0
         elif self.current_phase == self.PHASE_LOITER:
@@ -388,4 +428,4 @@ class UAVHybridEnv(gym.Env):
         if CL_actual > 1.6:
             reward -= 500.0
 
-        return self._get_obs(p_req_kw), float(reward), terminated, truncated, info
+        return self._get_obs(p_req_kw, rho=rho, temp_c=temp_c), float(reward), terminated, truncated, info
