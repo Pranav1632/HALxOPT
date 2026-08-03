@@ -1,6 +1,7 @@
 """
 CPU Parallel Multiprocessed RL Training Pipeline for UAV Hybrid Energy Management.
 Trains a PPO / SAC neural controller to optimize Power Split Ratio (PSR) under atmospheric turbulence and wind shear.
+Exports model weights in both Pickle (.pkl) and JSON (.json) formats.
 """
 import os
 import sys
@@ -12,8 +13,8 @@ from rl.ppo_agent import train_numpy_rl
 
 
 def train_rl_agent(
-    episodes: int = 12,
-    engine_kw: float = 65.0,
+    episodes: int = 15,
+    engine_kw: float = 120.0,  # Sized continuous engine for 5,000m ASL cruise
     battery_kwh: float = 20.0,
     save_path: str = None,
 ) -> dict:
@@ -37,4 +38,4 @@ def train_rl_agent(
 
 
 if __name__ == "__main__":
-    train_rl_agent(episodes=12)
+    train_rl_agent(episodes=15, engine_kw=120.0, battery_kwh=20.0)

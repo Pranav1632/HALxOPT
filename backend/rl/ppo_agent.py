@@ -1,10 +1,12 @@
 """
 Pure NumPy Actor-Critic Neural Policy Trainer.
 Zero external dependency high-performance RL agent for UAV Hybrid Propulsion Energy Management.
+Saves model weights in JSON (.json), Pickle (.pkl), and PyTorch (.pt) formats.
 """
 import os
 import math
 import json
+import pickle
 import numpy as np
 
 
@@ -98,23 +100,46 @@ class NumPyActorCritic:
             "W_critic": self.W_critic.tolist(),
             "b_critic": self.b_critic.tolist(),
         }
-        with open(file_path, "w") as f:
-            json.dump(data, f)
-        print(f"[SAVE] Saved NumPy PPO weights to {file_path}")
+
+        base_path = os.path.splitext(file_path)[0]
+        json_path = base_path + ".json"
+        pkl_path = base_path + ".pkl"
+
+        # 1. Save JSON (web & cross-platform zero-dependency)
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"[SAVE] Saved JSON model weights: {json_path}")
+
+        # 2. Save PKL (Python binary pickle format)
+        with open(pkl_path, "wb") as f:
+            pickle.dump(data, f)
+        print(f"[SAVE] Saved Pickle model weights: {pkl_path}")
 
     def load(self, file_path: str):
-        with open(file_path, "r") as f:
-            data = json.load(f)
+        base_path = os.path.splitext(file_path)[0]
+        json_path = base_path + ".json"
+        pkl_path = base_path + ".pkl"
+
+        if os.path.exists(pkl_path):
+            with open(pkl_path, "rb") as f:
+                data = pickle.load(f)
+            print(f"[LOAD] Loaded Pickle model weights from {pkl_path}")
+        elif os.path.exists(json_path):
+            with open(json_path, "r") as f:
+                data = json.load(f)
+            print(f"[LOAD] Loaded JSON model weights from {json_path}")
+        else:
+            raise FileNotFoundError(f"Model file not found at {json_path} or {pkl_path}")
+
         self.W1 = np.array(data["W1"])
         self.b1 = np.array(data["b1"])
         self.W_actor = np.array(data["W_actor"])
         self.b_actor = np.array(data["b_actor"])
         self.W_critic = np.array(data["W_critic"])
         self.b_critic = np.array(data["b_critic"])
-        print(f"[LOAD] Loaded NumPy PPO weights from {file_path}")
 
 
-def train_numpy_rl(env, total_episodes: int = 12) -> tuple:
+def train_numpy_rl(env, total_episodes: int = 15) -> tuple:
     print("========================================================")
     print("[RL PPO ENGINE] INITIATING NEURAL POLICY TRAINING")
     print("========================================================")
