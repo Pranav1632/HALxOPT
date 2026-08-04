@@ -51,6 +51,7 @@ class UAVHybridEnv(gym.Env):
         use_heuristic_policy: bool = True,
         dt: float = 10.0,
         enable_loiter: bool = True,
+        silent_loiter_mode: bool = True,
         initial_fuel_fraction: float = 1.0,
         headwind_kmh: float = 0.0,
         ambient_temp_c: float = 15.0,
@@ -66,6 +67,7 @@ class UAVHybridEnv(gym.Env):
         self.use_heuristic_policy = use_heuristic_policy
         self.dt = dt
         self.enable_loiter = enable_loiter
+        self.silent_loiter_mode = silent_loiter_mode
         self.initial_fuel_fraction = max(0.1, min(1.0, initial_fuel_fraction))
 
         self.headwind_ms = headwind_kmh / 3.6
@@ -224,11 +226,20 @@ class UAVHybridEnv(gym.Env):
 
         if self.use_heuristic_policy:
             fuel_ratio = self.fuel_remaining / self.fuel_initial if self.fuel_initial > 0 else 0
-            psr = heuristic_psr(self.current_phase, self.soc, fuel_ratio)
+            psr = heuristic_psr(self.current_phase, self.soc, fuel_ratio, silent_loiter=self.silent_loiter_mode)
         else:
             psr = float(np.clip(act_val, 0.0, 1.0))
 
-        # Battery Preservation Guard: Cap motor draw in climb to max 5% of P_req to preserve battery SoC > 75%
+        # ── Operator Command Override: Silent Loiter (MIL-OPS Mission Command) ──────────
+        # Silent loiter is an OPERATOR command (like pressing "stealth mode" on GCS),
+        # not a policy preference. It applies to BOTH heuristic AND RL modes.
+        # Threshold: soc > 3% (absolute safety floor), allowing stealth even at depleted SoC.
+        if (self.current_phase == self.PHASE_LOITER
+                and self.silent_loiter_mode
+                and self.soc > 0.03):
+            psr = 1.0
+
+        # Battery Preservation Guard: Cap motor draw in climb to max 5% of P_req
         if self.current_phase == self.PHASE_CLIMB and psr > 0.05:
             psr = 0.05
 
@@ -282,7 +293,13 @@ class UAVHybridEnv(gym.Env):
         p_engine_demand = (1.0 - psr) * p_req_kw
 
         # Motor limit (with sub-zero thermal derating)
-        if self.soc <= self.soc_min:
+        # For silent loiter (operator command), allow motor use down to 3% SoC floor
+        # (below soc_min=10%) so RL mode can execute stealth even with depleted battery.
+        _motor_soc_floor = (0.03
+                            if (self.current_phase == self.PHASE_LOITER
+                                and self.silent_loiter_mode)
+                            else self.soc_min)
+        if self.soc <= _motor_soc_floor:
             p_motor = 0.0
         else:
             max_motor = max_battery_power(
@@ -305,7 +322,7 @@ class UAVHybridEnv(gym.Env):
         p_deficit = p_req_kw - p_delivered
 
         if p_deficit > 0.01:
-            if self.soc > self.soc_min:
+            if self.soc > _motor_soc_floor:
                 max_motor = max_battery_power(
                     self.battery_capacity_kwh, self.c_rate_continuous, self.c_rate_peak,
                     self.motor_continuous_kw, self.motor_peak_kw, is_peak=is_peak_phase, temp_penalty=temp_penalty
@@ -372,14 +389,21 @@ class UAVHybridEnv(gym.Env):
         elif self.current_phase == self.PHASE_CLIMB and self.altitude >= self.target_altitude:
             self.current_phase = self.PHASE_CRUISE
         elif self.current_phase == self.PHASE_CRUISE:
+            if not hasattr(self, '_cruise_start_time'):
+                self._cruise_start_time = self.time_elapsed
+            cruise_time = self.time_elapsed - self._cruise_start_time
             if self.enable_loiter:
-                if fuel_ratio < 0.40:
+                # Enter loiter when fuel drops to 40% OR after 18h cruise (slow-burn missions)
+                if fuel_ratio < 0.40 or cruise_time > 64800:
                     self.current_phase = self.PHASE_LOITER
+                    self._loiter_start_time = self.time_elapsed
             else:
-                if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03):
+                if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03) or cruise_time > 64800:
                     self.current_phase = self.PHASE_DESCENT
         elif self.current_phase == self.PHASE_LOITER:
-            if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03):
+            # Exit loiter to descent if: fuel critical, OR max loiter time (8h) exceeded
+            loiter_time = self.time_elapsed - getattr(self, '_loiter_start_time', self.time_elapsed)
+            if (fuel_ratio < 0.08 and self.soc < 0.15) or (fuel_ratio < 0.03) or loiter_time > 28800:
                 self.current_phase = self.PHASE_DESCENT
         elif self.current_phase == self.PHASE_DESCENT and self.altitude <= 200.0:
             self.current_phase = self.PHASE_LANDING
@@ -407,7 +431,7 @@ class UAVHybridEnv(gym.Env):
 
         if p_deficit > 1.0:
             self.deficit_counter += 1
-            if self.deficit_counter >= 3:
+            if self.deficit_counter >= 5:  # allow up to 5 consecutive deficit steps (thermal transients)
                 terminated = True
                 info["reason"] = f"Power deficit: Required {p_req_kw:.1f} kW, delivered {p_delivered:.1f} kW"
         else:
@@ -425,8 +449,14 @@ class UAVHybridEnv(gym.Env):
         reward = 1.0 + sfc_bonus + soc_bonus
         if self.current_phase == self.PHASE_CRUISE:
             reward += 2.0
+            # Nudge RL to preserve battery during cruise when silent loiter is active
+            if self.silent_loiter_mode and self.soc < 0.25:
+                reward -= 8.0 * (0.25 - self.soc)  # penalty for draining below 25% before loiter
         elif self.current_phase == self.PHASE_LOITER:
             reward += 2.5
+            # Reward RL for executing silent loiter (ICE OFF, PSR=1.0)
+            if self.silent_loiter_mode and actual_psr > 0.90:
+                reward += 5.0  # strong reward: stealth loiter achieved
         elif self.current_phase == self.PHASE_COMPLETED:
             reward += 500.0
 

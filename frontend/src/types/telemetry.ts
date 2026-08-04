@@ -40,6 +40,7 @@ export interface SimulationParams {
   targetAltitude: number;
   payloadWeight: number;
   enableLoiter: boolean;
+  silentLoiterMode?: boolean;
   initialFuelFraction: number;
   headwindKmh?: number;
   ambientTempC?: number;

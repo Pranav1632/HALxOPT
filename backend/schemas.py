@@ -27,6 +27,10 @@ class OptimizationRequest(BaseModel):
         True,
         description="Toggle loiter holding phase vs straight flight"
     )
+    silent_loiter_mode: bool = Field(
+        True,
+        description="Enable silent loiter (ICE OFF, 100% electric): acoustic & IR stealth mode. PSR=1.0 during loiter when SoC > 40%."
+    )
     initial_fuel_fraction: float = Field(
         1.0,
         description="Fraction of max fuel capacity to start with (0.1–1.0)",

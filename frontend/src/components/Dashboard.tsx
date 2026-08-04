@@ -11,6 +11,7 @@ import { fetchOptimizationResults } from '../services/api';
 import DashboardHeader from './dashboard/DashboardHeader';
 import SimulationControls from './dashboard/SimulationControls';
 import CurrentStateWidget from './dashboard/CurrentStateWidget';
+import RLStatusPanel from './dashboard/RLStatusPanel';
 import MissionProfileTimeline from './dashboard/MissionProfileTimeline';
 import WeightBudgetWidget from './dashboard/WeightBudgetWidget';
 import SystemConstantsWidget from './dashboard/SystemConstantsWidget';
@@ -22,11 +23,21 @@ export default function Dashboard() {
   const [targetSpeedKmh, setTargetSpeedKmh] = useState<number>(250);
   const [targetAltitude, setTargetAltitude] = useState<number>(5000);
   const [payloadWeight, setPayloadWeight] = useState<number>(200);
+
+  // Flight envelope coupling: mirror backend Pydantic model_validator (Alt > 8000m → payload ≤ 200 kg)
+  const handleTargetAltitudeChange = (val: number) => {
+    setTargetAltitude(val);
+    if (val > 8000 && payloadWeight > 200) {
+      setPayloadWeight(200);
+    }
+  };
   const [enableLoiter, setEnableLoiter] = useState<boolean>(true);
+  const [silentLoiterMode, setSilentLoiterMode] = useState<boolean>(true);
   const [showMatrix, setShowMatrix] = useState<boolean>(true);
   const [initialFuelFraction, setInitialFuelFraction] = useState<number>(1.0);
   const [headwindKmh, setHeadwindKmh] = useState<number>(0);
   const [ambientTempC, setAmbientTempC] = useState<number>(15);
+  const [turbulenceLevel, setTurbulenceLevel] = useState<number>(0);
   const [policyMode, setPolicyMode] = useState<string>('heuristic');
 
   const [isShapModalOpen, setIsShapModalOpen] = useState<boolean>(false);
@@ -86,9 +97,11 @@ export default function Dashboard() {
         targetAltitude,
         payloadWeight,
         enableLoiter,
+        silentLoiterMode,
         initialFuelFraction,
         headwindKmh,
         ambientTempC,
+        turbulenceLevel,
         policyMode,
       });
       setSpecs(data.optimal_specs);
@@ -100,7 +113,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, initialFuelFraction, headwindKmh, ambientTempC, policyMode]);
+  }, [targetSpeedKmh, targetAltitude, payloadWeight, enableLoiter, silentLoiterMode, initialFuelFraction, headwindKmh, ambientTempC, turbulenceLevel, policyMode]);
 
   // Initial load to populate telemetry, 3D flight path, header specs & matrix
   useEffect(() => {
@@ -146,18 +159,30 @@ export default function Dashboard() {
         <aside className="w-[284px] flex-shrink-0 border-r border-slate-800/60 bg-[#0D1117] flex flex-col overflow-y-auto custom-scrollbar">
           <SimulationControls
             targetSpeedKmh={targetSpeedKmh} setTargetSpeedKmh={setTargetSpeedKmh}
-            targetAltitude={targetAltitude} setTargetAltitude={setTargetAltitude}
+            targetAltitude={targetAltitude} setTargetAltitude={handleTargetAltitudeChange}
             payloadWeight={payloadWeight} setPayloadWeight={setPayloadWeight}
             initialFuelFraction={initialFuelFraction} setInitialFuelFraction={setInitialFuelFraction}
             enableLoiter={enableLoiter} setEnableLoiter={setEnableLoiter}
+            silentLoiterMode={silentLoiterMode} setSilentLoiterMode={setSilentLoiterMode}
             headwindKmh={headwindKmh} setHeadwindKmh={setHeadwindKmh}
             ambientTempC={ambientTempC} setAmbientTempC={setAmbientTempC}
+            turbulenceLevel={turbulenceLevel} setTurbulenceLevel={setTurbulenceLevel}
             policyMode={policyMode} setPolicyMode={setPolicyMode}
             loading={loading} loadProgress={loadProgress} handleOptimize={handleOptimize}
           />
 
           {currentPoint && !loading && (
             <CurrentStateWidget currentPoint={currentPoint} />
+          )}
+
+          {/* Neural RL Policy Monitor — always shown when telemetry exists */}
+          {telemetry.length > 0 && !loading && (
+            <RLStatusPanel
+              telemetry={telemetry}
+              currentIndex={currentIndex}
+              policyMode={policyMode}
+              envMetadata={envMetadata}
+            />
           )}
 
           {phaseDurations && !loading && (

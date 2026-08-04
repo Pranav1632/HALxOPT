@@ -28,6 +28,7 @@ export async function fetchOptimizationResults(params: SimulationParams): Promis
       target_altitude: params.targetAltitude,
       payload_weight: params.payloadWeight,
       enable_loiter: params.enableLoiter,
+      silent_loiter_mode: params.silentLoiterMode ?? true,
       initial_fuel_fraction: params.initialFuelFraction,
       headwind_kmh: params.headwindKmh ?? 0.0,
       ambient_temp_c: params.ambientTempC ?? 15.0,

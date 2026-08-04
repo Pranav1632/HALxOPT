@@ -13,10 +13,14 @@ interface SimulationControlsProps {
   setInitialFuelFraction: (val: number) => void;
   enableLoiter: boolean;
   setEnableLoiter: (val: boolean) => void;
+  silentLoiterMode: boolean;
+  setSilentLoiterMode: (val: boolean) => void;
   headwindKmh: number;
   setHeadwindKmh: (val: number) => void;
   ambientTempC: number;
   setAmbientTempC: (val: number) => void;
+  turbulenceLevel: number;
+  setTurbulenceLevel: (val: number) => void;
   policyMode: string;
   setPolicyMode: (val: string) => void;
   loading: boolean;
@@ -30,8 +34,10 @@ export default function SimulationControls({
   payloadWeight, setPayloadWeight,
   initialFuelFraction, setInitialFuelFraction,
   enableLoiter, setEnableLoiter,
+  silentLoiterMode, setSilentLoiterMode,
   headwindKmh, setHeadwindKmh,
   ambientTempC, setAmbientTempC,
+  turbulenceLevel, setTurbulenceLevel,
   policyMode, setPolicyMode,
   loading, loadProgress, handleOptimize
 }: SimulationControlsProps) {
@@ -117,6 +123,16 @@ export default function SimulationControls({
 
       <div className="mb-3">
         <div className="flex justify-between text-[10px] mb-1">
+          <span className="text-slate-400">Turbulence Intensity</span>
+          <span className="font-mono text-rose-400 font-bold bg-rose-950/30 px-1.5 rounded">{(turbulenceLevel * 100).toFixed(0)}%</span>
+        </div>
+        <input type="range" min="0" max="1" step="0.05" value={turbulenceLevel}
+          onChange={(e) => setTurbulenceLevel(parseFloat(e.target.value))} disabled={loading}
+          className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-rose-500 disabled:opacity-40" />
+      </div>
+
+      <div className="mb-3">
+        <div className="flex justify-between text-[10px] mb-1">
           <span className="text-slate-400">Initial Fuel Load</span>
           <span className="font-mono text-orange-400 font-bold bg-orange-950/30 px-1.5 rounded">{Math.round(initialFuelFraction * 100)}%</span>
         </div>
@@ -125,12 +141,50 @@ export default function SimulationControls({
           className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-orange-500 disabled:opacity-40" />
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-2">
         <input type="checkbox" id="loiterToggle" checked={enableLoiter}
           onChange={(e) => setEnableLoiter(e.target.checked)} disabled={loading}
           className="w-3.5 h-3.5 rounded accent-emerald-500 cursor-pointer disabled:opacity-40" />
         <label htmlFor="loiterToggle" className="text-[10px] text-slate-400 cursor-pointer">Enable Loiter Phase (Orbit)</label>
       </div>
+
+      {/* Silent Loiter Mode Toggle — MIL-OPS stealth mode */}
+      {enableLoiter && (
+        <div className="mb-4 bg-slate-900/40 border border-violet-800/30 rounded-lg p-2">
+          <div className="text-[8px] text-violet-400 font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${silentLoiterMode ? 'bg-violet-400 animate-pulse shadow-[0_0_6px_rgba(167,139,250,0.8)]' : 'bg-slate-600'}`} />
+            Loiter Mode
+          </div>
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              type="button"
+              onClick={() => setSilentLoiterMode(true)}
+              disabled={loading}
+              className={`py-1.5 px-2 text-[8px] font-bold rounded transition-all text-left ${
+                silentLoiterMode
+                  ? 'bg-violet-900/50 text-violet-200 border border-violet-500/60 shadow-[0_0_8px_rgba(167,139,250,0.3)]'
+                  : 'text-slate-500 hover:text-slate-300 border border-slate-800/40'
+              }`}
+            >
+              <div>🔇 SILENT</div>
+              <div className="text-[7px] opacity-70 mt-0.5">&lt;45 dB · ICE OFF</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSilentLoiterMode(false)}
+              disabled={loading}
+              className={`py-1.5 px-2 text-[8px] font-bold rounded transition-all text-left ${
+                !silentLoiterMode
+                  ? 'bg-amber-900/40 text-amber-200 border border-amber-500/50'
+                  : 'text-slate-500 hover:text-slate-300 border border-slate-800/40'
+              }`}
+            >
+              <div>🔊 ENDURANCE</div>
+              <div className="text-[7px] opacity-70 mt-0.5">~95 dB · ICE ON</div>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="relative">
         <button

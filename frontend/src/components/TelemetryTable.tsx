@@ -1,24 +1,6 @@
 'use client';
 import React, { useMemo, useState } from 'react';
-
-interface TelemetryPoint {
-  time: number;
-  altitude: number;
-  speed: number;
-  power_required: number;
-  power_delivered: number;
-  power_motor: number;
-  power_engine: number;
-  soc: number;
-  fuel: number;
-  weight: number;
-  phase: string;
-  deficit: number;
-  u: number;
-  p_aero: number;
-  p_climb: number;
-  climb_rate: number;
-}
+import { TelemetryPoint } from '../types/telemetry';
 
 interface TelemetryTableProps {
   telemetry: TelemetryPoint[];

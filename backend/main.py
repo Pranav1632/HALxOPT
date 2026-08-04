@@ -103,6 +103,7 @@ async def optimize_uav(req: OptimizationRequest):
             use_heuristic_policy=use_heuristic,
             dt=60.0,
             enable_loiter=req.enable_loiter,
+            silent_loiter_mode=req.silent_loiter_mode,
             initial_fuel_fraction=req.initial_fuel_fraction,
             headwind_kmh=req.headwind_kmh,
             ambient_temp_c=req.ambient_temp_c,
@@ -152,6 +153,7 @@ async def optimize_uav(req: OptimizationRequest):
             "ambient_temp_c": req.ambient_temp_c,
             "turbulence_level": req.turbulence_level,
             "policy_mode": req.policy_mode,
+            "silent_loiter_mode": req.silent_loiter_mode,
             "wingspan_m": AERO_SPECS["wingspan_m"],
             "wing_area_m2": AERO_SPECS["wing_area_m2"],
         }
