@@ -1,5 +1,14 @@
 # Phase Explanations Overview: What, Why, and How
 
+> [!TIP]
+> **Presenting to friends?** Use the **Toyota Prius analogy**: 
+> - **Takeoff** = Floor the gas pedal + electric boost!
+> - **Climb** = Keep driving uphill on gas so the battery doesn't die.
+> - **Cruise** = Smooth highway cruise control for maximum mileage.
+> - **Silent Loiter** = Turn the engine OFF completely and stealth-hover on electric power.
+> - **Descent** = Coast downhill and charge the battery (regenerative braking).
+> - **Landing** = Soft touchdown.
+
 This document provides a comprehensive overview of the **6 Flight Phases** engineered into the AeroOptima simulation platform for a 1000 kg tactical hybrid-electric fixed-wing UAV.
 
 Each phase is analyzed through three core analytical lenses:

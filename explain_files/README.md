@@ -1,19 +1,20 @@
-# AeroOptima — `explain_files` Technical Documentation Suite
+# AeroOptima — `explain_files` Technical Documentation & Presentation Suite
 
 Welcome to the **`explain_files`** technical documentation repository for **AeroOptima** (IIT Indore × HAL Hackathon PS-1: Hybrid-Electric UAV Propulsion Architecture Sizing and Optimization Platform).
 
-This folder contains exhaustive technical documentation detailing the physics, equations, flight phase operational logic, optimization strategies, and Reinforcement Learning (RL) control mechanisms governing the 1000 kg tactical fixed-wing UAV platform.
+This folder contains exhaustive technical documentation, interactive Mermaid diagrams, math formulations, code linkages, and a **friendly presentation guide designed to easily explain the project to friends, classmates, and judges**.
 
 ---
 
-## 📂 Documentation Sitemap & Structure
+## 📂 Documentation Sitemap & Reading Guide
 
-| File Name | Description | Key Focus Areas |
+| File Name | Target Audience | Description & Key Focus Areas |
 | :--- | :--- | :--- |
-| [**`01_phases_overview.md`**](file:///d:/project/HAL/explain_files/01_phases_overview.md) | **High-Level Mission Phase Overview** | High-level summary of all 6 flight phases (Takeoff, Climb, Cruise, Loiter, Descent, Landing), explaining **What**, **Why**, and **How**. |
-| [**`02_concepts_and_formulae.md`**](file:///d:/project/HAL/explain_files/02_concepts_and_formulae.md) | **Aerospace, Propulsion, GA & RL Physics Engine** | Exhaustive mathematical catalog of equations, atmospheric models, aerodynamics, thermal derating, GA sizing, and PPO RL policy equations explained with **What**, **Why**, and **How**. |
-| [**`03_phase_details.md`**](file:///d:/project/HAL/explain_files/03_phase_details.md) | **Deep-Dive Flight Phase Specifications** | In-depth operational mechanics for each individual phase: speed envelopes, climb rate targets, power-split dynamics, battery preservation guards, silent loiter mode, and regenerative glide recovery. |
-| [**`04_rl_workflow_and_results.md`**](file:///d:/project/HAL/explain_files/04_rl_workflow_and_results.md) | **RL Workflow, Comparison & Performance Specifications** | Neural PPO workflow, Actor-Critic architecture, comparison matrix vs Heuristic & GA, output differences, SHAP feature audit, and quantitative performance specs. |
+| [**`00_friend_presentation_guide.md`**](file:///d:/project/HAL/explain_files/00_friend_presentation_guide.md) | 🌟 **Friends & Presenters** | **Start Here!** 30-second pitch, simple analogies (Prius, Mario AI), ELI5 tables, presentation script, and Q&A cheat sheet. |
+| [**`01_phases_overview.md`**](file:///d:/project/HAL/explain_files/01_phases_overview.md) | ✈️ **Overview & Visuals** | 6 flight phases explained with **What**, **Why**, and **How**, plus State Machine & Sequence Diagrams. |
+| [**`02_concepts_and_formulae.md`**](file:///d:/project/HAL/explain_files/02_concepts_and_formulae.md) | 📐 **Aerospace & AI Engineers** | Exhaustive mathematical catalog of equations, atmospheric models, aerodynamics, thermal derating, GA sizing, and PPO RL policy equations. |
+| [**`03_phase_details.md`**](file:///d:/project/HAL/explain_files/03_phase_details.md) | 🛠️ **Developers & Code Audit** | In-depth operational mechanics for each individual phase: speed envelopes, climb rate targets, power-split dynamics, battery preservation guards, silent loiter mode, and decision flowcharts. |
+| [**`04_rl_workflow_and_results.md`**](file:///d:/project/HAL/explain_files/04_rl_workflow_and_results.md) | 🤖 **Data Science & ML Experts** | Neural PPO workflow, Actor-Critic architecture, comparison matrix vs Heuristic & GA, output differences, SHAP feature audit, and quantitative performance specs. |
 
 ---
 
