@@ -6,7 +6,36 @@ Each section explains **WHAT** the concept/formula is, **WHY** it is derived/use
 
 ---
 
-## 🌐 Section 1: International Standard Atmosphere (ISA 1976) & Weather Physics
+## 📐 Section 1: Aerodynamics & Atmospheric Calculation Flow
+
+```mermaid
+flowchart TD
+    A[Inputs: Altitude h, Speed V, Climb Rate h_dot, Mass m] --> B[ISA Atmosphere Engine]
+    B --> C[Compute Temperature T = T0 - L*h]
+    B --> D[Compute Air Density ρ = ρ0 * 1 - L*h/T0 ^ 4.25588]
+    
+    C & D --> E[Stall Speed Check]
+    E --> F["V_stall = sqrt(2 * m * g / (ρ * S * CL_max))"]
+    
+    F --> G[Flight Angle γ = asin(h_dot / V)]
+    G --> H["Lift Coefficient CL = 2 m g cos(γ) / (ρ V² S)"]
+    
+    H --> I[Drag Coefficient Breakdown]
+    I --> J["CD0 = 0.022 (Parasite)"]
+    I --> K["CDi = CL² / (π * AR * e) (Induced)"]
+    I --> L["CD_beta = 0.5 * β² (Sideslip)"]
+    I --> M["CD_mach = CD0 * (1/sqrt(1-M²) - 1) (Compressibility)"]
+    
+    J & K & L & M --> N["Total CD = CD0 + CDi + CD_beta + CD_mach"]
+    N --> O["Total Drag Force D = 1/2 * ρ * V² * S * CD"]
+    
+    O --> P[Propeller Advance Ratio Efficiency η_prop]
+    P --> Q["Power Required P_req = (D * V + m * g * h_dot) / (1000 * η_prop) [kW]"]
+```
+
+---
+
+## 🌐 Section 1 (Detail): International Standard Atmosphere (ISA 1976) & Weather Physics
 
 ### 1. Temperature vs Altitude Formula
 #### WHAT is it?
@@ -37,7 +66,40 @@ Where:
 
 ---
 
-## 🛩️ Section 2: Aerodynamics & Flight Physics
+## ⚡ Section 2: Hybrid Propulsion & Battery Thermal Flow
+
+```mermaid
+flowchart LR
+    subgraph Input Demand
+        P_req[Required Power P_req]
+        PSR["Power Split Ratio α ∈ [0, 1]"]
+    end
+
+    subgraph Electric Path
+        PSR --> P_m_dem["P_motor_demand = α * P_req"]
+        P_m_dem --> Batt_Thermal[Temp Penalty f_temp]
+        Batt_Thermal --> C_Rate[C-Rate & Max Battery Power Limit]
+        C_Rate --> P_motor[Delivered Motor Power P_motor]
+        P_motor --> Batt_Drain["Energy Drawn = (P_motor / η_motor - P_regen) * dt"]
+        Batt_Drain --> SoC_Update[Update Battery SoC]
+    end
+
+    subgraph Turboshaft Path
+        PSR --> P_e_dem["P_engine_demand = (1 - α) * P_req"]
+        P_e_dem --> Derate[Gagg-Ferrar Altitude Derating]
+        Derate --> P_engine[Delivered Engine Power P_engine]
+        P_engine --> SFC[Part-Load SFC Curve Calculation]
+        SFC --> Fuel_Burn["Fuel Burned = SFC(Load) * P_engine * dt"]
+        Fuel_Burn --> Fuel_Update[Update Fuel Remaining]
+    end
+
+    P_motor & P_engine --> P_del[Delivered Power P_delivered]
+    P_req & P_del --> Deficit["Power Deficit = max(0, P_req - P_delivered)"]
+```
+
+---
+
+## 🛩️ Section 2 (Detail): Aerodynamics & Flight Physics
 
 ### 3. Wing Aspect Ratio ($AR$)
 #### WHAT is it?
@@ -94,126 +156,69 @@ Where $\eta_{\text{prop}}$ is the advance ratio propeller efficiency ($0.65 - 0.
 
 ---
 
-## ⚡ Section 3: Hybrid Propulsion & Battery Thermal Models
+## 🧬 Section 3: Genetic Algorithm Optimization Architecture
 
-### 7. Power-Split Ratio ($\alpha$) & Energy Conservation
-#### WHAT is it?
-The continuous control parameter governing the fraction of required power supplied by the electric motor versus the turboshaft engine.
-#### WHY is it used?
-Enables hybrid energy management. High $\alpha$ optimizes instantaneous torque and zero emissions; low $\alpha$ utilizes high energy density of liquid aviation fuel.
-#### HOW is it calculated?
-$$P_{\text{motor demand}} = \alpha \cdot P_{\text{req}}$$
-$$P_{\text{engine demand}} = (1 - \alpha) \cdot P_{\text{req}}$$
-$$P_{\text{delivered}} = P_{\text{motor}} + P_{\text{engine}}$$
-- Code location: [`uav_env.py`](file:///d:/project/HAL/backend/env/uav_env.py#L292-L293)
-
----
-
-### 8. Gagg-Ferrar Turboshaft Altitude Power Derating
-#### WHAT is it?
-Empirical altitude derating formula scaling internal combustion engine max power output based on ambient air density.
-#### WHY is it used?
-Turboshafts suffer power drop at high altitudes due to reduced oxygen intake.
-#### HOW is it calculated?
-$$\text{Derate}(h) = \frac{\rho(h)}{\rho_0} - \frac{1 - \frac{\rho(h)}{\rho_0}}{7.55}$$
-$$P_{\text{engine max}}(h) = P_{\text{engine base}} \cdot \text{Derate}(h)$$
-- Code location: [`propulsion.py`](file:///d:/project/HAL/backend/physics/propulsion.py#L12)
-
----
-
-### 9. Turboshaft Specific Fuel Consumption (SFC) Curve
-#### WHAT is it?
-Part-load efficiency model calculating fuel consumption rate (kg/kWh) based on engine throttle load factor.
-#### WHY is it used?
-Turboshaft engines become highly inefficient when throttled below 50% load. SFC modeling forces the optimizer to run the engine near peak efficiency (75-85% load).
-#### HOW is it calculated?
-$$\text{Load} = \frac{P_{\text{engine}}}{P_{\text{engine max}}}$$
-$$\text{SFC}(\text{Load}) = \text{SFC}_{\text{base}} \cdot \left(1.0 + 0.6 \cdot (1.0 - \text{Load})^2\right)$$
-$$\dot{m}_{\text{fuel}} = \text{SFC}(\text{Load}) \cdot P_{\text{engine}} \quad (\text{kg/h})$$
-- Code location: [`propulsion.py`](file:///d:/project/HAL/backend/physics/propulsion.py#L25)
+```mermaid
+flowchart TD
+    Start([Initialize Population N=50]) --> GenLoop{Generation g <= MaxGen}
+    
+    GenLoop -- Yes --> Eval[Evaluate Individual Chromosome: P_eng, E_batt]
+    Eval --> MassCheck[Calculate Component Masses: Engine, Motor, Battery]
+    MassCheck --> SimFlight[Run Full Flight Re-Simulation in UAVHybridEnv]
+    
+    SimFlight --> Metrics[Extract Flight Endurance Time t_endurance]
+    Metrics --> Penalties{MTOW > 1000kg OR Stall OR Power Deficit?}
+    
+    Penalties -- Yes --> ApplyPenalty[Fitness = t_endurance - 1000 * MTOW_excess - 500 * Violation]
+    Penalties -- No --> RawFitness[Fitness = t_endurance]
+    
+    ApplyPenalty & RawFitness --> Selection[Binary Tournament Selection]
+    Selection --> Crossover[Simulated Binary Crossover SBX p=0.8]
+    Crossover --> Mutation[Polynomial Mutation p=0.2]
+    Mutation --> GenLoop
+    
+    GenLoop -- No --> BestResult([Extract Global Pareto Optimal Sizing Vector])
+```
 
 ---
 
-### 10. Battery Thermal Capacity Derating & C-Rate Limits
-#### WHAT is it?
-Battery capacity reduction factor $f_{\text{temp}}(T)$ and maximum discharge power limit.
-#### WHY is it used?
-Sub-zero temperatures drastically degrade Li-Ion battery electrolyte conductivity and usable capacity.
-#### HOW is it calculated?
-$$f_{\text{temp}}(T) = 1.0 - 0.005 \cdot \max(0, 15.0 - T_{\text{ambient}})$$
-$$E_{\text{batt eff}} = E_{\text{batt nominal}} \cdot f_{\text{temp}}(T)$$
-$$P_{\text{batt max}} = \min(P_{\text{motor rating}}, E_{\text{batt eff}} \cdot C_{\text{rate max}})$$
-- Code location: [`battery.py`](file:///d:/project/HAL/backend/physics/battery.py#L15)
+## 🤖 Section 4: Neural PPO Actor-Critic Architecture
 
----
+```mermaid
+graph TD
+    subgraph 9D Input State s_t
+        S0[Altitude h]
+        S1[Airspeed V]
+        S2[Battery SoC]
+        S3[Fuel Fraction]
+        S4[Power Req P_req]
+        S5[Engine Load]
+        S6[Air Density ρ]
+        S7[Ambient Temp T]
+        S8[Phase ID]
+    end
 
-### 11. Regenerative Descent Energy Recovery ($P_{\text{regen}}$)
-#### WHAT is it?
-Electric motor regeneration equation capturing electrical power fed back into the battery during glideslope descent.
-#### WHY is it used?
-Extends total endurance by capturing potential energy during negative rate of climb ($\dot{h} < 0$).
-#### HOW is it calculated?
-$$P_{\text{regen}} = \eta_{\text{regen}} \cdot \frac{m \cdot g \cdot |\dot{h}|}{1000} \quad (\text{kW})$$
-$$\Delta \text{SoC} = +\frac{P_{\text{regen}} \cdot \Delta t}{3600 \cdot E_{\text{batt eff}}}$$
-Where $\eta_{\text{regen}} = 0.35$ (35% net regeneration efficiency).
-- Code location: [`propulsion.py`](file:///d:/project/HAL/backend/physics/propulsion.py#L55)
+    subgraph Feature Standardization Layer
+        NORM["Standardization: s_norm[0]=h/10000, s_norm[1]=V/100, s_norm[4]=P_req/100"]
+    end
 
----
+    subgraph Shared Hidden Representation
+        W1["W1 Matrix (9 x 64) + b1 Bias Vector"]
+        ACT1["SiLU Activation: h = x * Sigmoid(x) (64 Units)"]
+    end
 
-## 🧬 Section 4: Genetic Algorithm Sizing Optimization (DEAP)
+    subgraph Dual Neural Output Heads
+        W_Actor["W_actor Matrix (64 x 1)"]
+        Sigmoid["Sigmoid Output: α = 1 / (1 + e^-z)"]
+        ActorOutput["Power-Split Ratio α ∈ [0.0, 1.0]"]
 
-### 12. GA Chromosome & Fitness Function Formulation
-#### WHAT is it?
-Outer optimization loop chromosome $\mathbf{x} = [P_{\text{engine}}, E_{\text{battery}}]^T$ search space formulation.
-#### WHY is it used?
-Finds the global optimal component sizing combination for maximum mission endurance subject to STANAG 4671 MTOW constraints.
-#### HOW is it calculated?
-- **Chromosome bounds**: $30\text{ kW} \le P_{\text{engine}} \le 120\text{ kW}$, $5\text{ kWh} \le E_{\text{battery}} \le 50\text{ kWh}$.
-- **Fitness Evaluation**:
-  $$\text{Fitness}(\mathbf{x}) = t_{\text{endurance}} - \text{Penalty}_{\text{MTOW}} - \text{Penalty}_{\text{Airworthiness}}$$
-  $$\text{Penalty}_{\text{MTOW}} = 1000 \cdot \max(0, m_{\text{gross}} - m_{\text{MTOW}})$$
-- Code location: [`backend/ga/engine.py`](file:///d:/project/HAL/backend/ga/engine.py)
+        W_Critic["W_critic Matrix (64 x 1)"]
+        Linear["Linear Output: V(s)"]
+        CriticOutput["State Value Return V(s)"]
+    end
 
----
-
-## 🤖 Section 5: Proximal Policy Optimization (PPO) Reinforcement Learning
-
-### 13. State Vector Mapping ($\mathcal{S} \in \mathbb{R}^9$)
-#### WHAT is it?
-Continuous 9D state observation vector passed into the PPO neural network policy.
-#### WHY is it used?
-Provides the agent complete real-time flight state awareness to decide power split $\alpha$.
-#### HOW is it structured?
-$$\mathbf{s}_t = \begin{bmatrix} h & V & \text{SoC} & f_{\text{fuel}} & P_{\text{req}} & \text{Load}_{\text{eng}} & \rho & T & \text{Phase}_{\text{ID}} \end{bmatrix}^T$$
-State normalization:
-$$\bar{s}_0 = \frac{h}{10000}, \quad \bar{s}_1 = \frac{V}{100}, \quad \bar{s}_4 = \frac{P_{\text{req}}}{100}$$
-- Code location: [`ppo_agent.py`](file:///d:/project/HAL/backend/rl/ppo_agent.py#L50-L55)
-
----
-
-### 14. Dual-Head Actor-Critic Neural Network Equations
-#### WHAT is it?
-2-layer NumPy MLP with shared hidden representation (64 hidden neurons with SiLU activation) branching into Actor ($\alpha$) and Critic ($V(s)$) heads.
-#### WHY is it used?
-Lightweight, zero-dependency policy inference engine running under $0.5\text{ ms}$ per step.
-#### HOW is it calculated?
-$$\mathbf{h} = \text{SiLU}\left(\mathbf{W}_1 \bar{\mathbf{s}} + \mathbf{b}_1\right)$$
-$$\alpha = \sigma\left(\mathbf{W}_{\text{actor}} \mathbf{h} + b_{\text{actor}}\right) = \frac{1}{1 + e^{-z}}$$
-$$V(\mathbf{s}) = \mathbf{W}_{\text{critic}} \mathbf{h} + b_{\text{critic}}$$
-- Code location: [`ppo_agent.py`](file:///d:/project/HAL/backend/rl/ppo_agent.py#L41-L59)
-
----
-
-### 15. Dense Reward Function ($\mathcal{R}_t$)
-#### WHAT is it?
-Step reward function balancing endurance, SFC economy, stealth loiter, and battery preservation.
-#### WHY is it used?
-Guides RL agent toward optimal policy convergence without violating safety floors.
-#### HOW is it calculated?
-$$R_t = 1.0 + R_{\text{SFC}} + R_{\text{SoC}} + R_{\text{Phase}} - P_{\text{Deficit}} - P_{\text{Stall}}$$
-Where:
-- $R_{\text{SFC}} = 0.5 \times \text{Load}_{\text{eng}}$ (rewards running engine near full throttle)
-- $R_{\text{SoC}} = 0.5 \times \text{SoC}$
-- $R_{\text{Loiter}} = +5.0$ if stealth loiter achieved ($\alpha > 0.90$)
-- $P_{\text{Climb Motor Penalty}} = -10.0 \times (\alpha - 0.05)$ if $\alpha > 0.05$ during climb.
-- Code location: [`uav_env.py`](file:///d:/project/HAL/backend/env/uav_env.py#L461-L491)
+    S0 & S1 & S2 & S3 & S4 & S5 & S6 & S7 & S8 --> NORM
+    NORM --> W1 --> ACT1
+    ACT1 --> W_Actor --> Sigmoid --> ActorOutput
+    ACT1 --> W_Critic --> Linear --> CriticOutput
+```

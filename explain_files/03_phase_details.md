@@ -20,6 +20,18 @@ This document provides a deep-dive operational specification for every phase in 
 
 ## 1. Detailed Breakdown: Phase 1 — Takeoff
 
+```mermaid
+flowchart TD
+    A[Start Takeoff Phase h=0m] --> B["Set Target Speed V = max(1.15 * V_stall, 25.0 m/s)"]
+    B --> C["Set Target Climb Rate h_dot = +3.0 m/s"]
+    C --> D[Request Peak C-Rate Battery Power]
+    D --> E[Set Power Split α = 0.50 Hybrid Boost]
+    E --> F[Step Physics: Accelerate & Gain Altitude]
+    F --> G{Is Altitude h >= 200m?}
+    G -- No --> F
+    G -- Yes --> H[Transition to Phase 2: Climb]
+```
+
 ### WHAT happens during Takeoff?
 The aircraft rolls along the runway, accelerates to rotation speed, lifts off, and climbs past obstacles to an altitude of $200\text{ m}$.
 
@@ -42,6 +54,20 @@ The aircraft rolls along the runway, accelerates to rotation speed, lifts off, a
 ---
 
 ## 2. Detailed Breakdown: Phase 2 — Climb
+
+```mermaid
+flowchart TD
+    A[Enter Climb Phase h=200m] --> B["Compute Alt Fraction alt_frac = h / h_target"]
+    B --> C["Compute Target ROC = max(1.8, 4.5 * (1.0 - 0.6 * alt_frac))"]
+    C --> D{Does Power Split α > 0.05?}
+    D -- Yes --> E[Preservation Guard: Force α = 0.05]
+    D -- No --> F[Maintain Requested α]
+    E & F --> G[Turboshaft Supplies >= 95% Climb Power]
+    G --> H[Step Physics & Update Altitude]
+    H --> I{Is Altitude h >= h_target 5000m?}
+    I -- No --> B
+    I -- Yes --> J[Transition to Phase 3: Cruise]
+```
 
 ### WHAT happens during Climb?
 The UAV ascends from $200\text{ m}$ to mission cruise altitude ($5000\text{ m}$). Air density decreases by over 40%, increasing true airspeed for a given dynamic pressure.
@@ -69,6 +95,19 @@ The UAV ascends from $200\text{ m}$ to mission cruise altitude ($5000\text{ m}$)
 
 ## 3. Detailed Breakdown: Phase 3 — Cruise
 
+```mermaid
+flowchart TD
+    A[Enter Cruise Phase h=5000m] --> B["Set Speed V = max(V_target 250 km/h, 1.25 V_stall)"]
+    B --> C["Set Climb Rate h_dot = 0.0 m/s"]
+    C --> D["Power Split α = 0.0 (Pure Engine Propulsion)"]
+    D --> E[Engine Operates at 80% Load BSFC Sweet Spot]
+    E --> F[Step Physics & Burn Fuel]
+    F --> G{Check Cruise Exit Conditions}
+    G -- "Fuel < 45% OR Batt Depleted (Loiter Enabled)" --> H[Transition to Phase 4: Loiter]
+    G -- "Fuel < 8% & SoC < 15% (Loiter Disabled)" --> I[Transition to Phase 5: Descent]
+    G -- Energy Sufficient --> B
+```
+
 ### WHAT happens during Cruise?
 The UAV maintains steady level flight at $h = 5000\text{ m}$ and target speed $V = 250\text{ km/h}$ ($69.44\text{ m/s}$).
 
@@ -88,6 +127,20 @@ The UAV maintains steady level flight at $h = 5000\text{ m}$ and target speed $V
 ---
 
 ## 4. Detailed Breakdown: Phase 4 — Loiter / Silent Loiter
+
+```mermaid
+flowchart TD
+    A[Enter Loiter Phase h=3000-5000m] --> B{Is Silent Loiter Active & SoC > 3%?}
+    B -- Yes --> C[Stealth Override: Power Split α = 1.0]
+    C --> D[Turboshaft Engine Shut OFF: Fuel Burn = 0.0]
+    D --> E[Pure Electric Motor Propulsion]
+    B -- No --> F[Hybrid Loiter: α = 0.20]
+    E & F --> G["Set Speed V_loiter = 0.76 * V_target (Min Power V_mp)"]
+    G --> H[Step Physics & Drain Battery]
+    H --> I{Exit Conditions: Fuel < 8% & SoC < 15% OR t_loiter > 8h?}
+    I -- No --> B
+    I -- Yes --> J[Transition to Phase 5: Descent]
+```
 
 ### WHAT happens during Loiter?
 The UAV flies in an energy-conserving loiter pattern over the target area. In **Silent Loiter Mode**, the turboshaft engine is powered off, and the aircraft flies silently on electric motor power.
@@ -115,6 +168,20 @@ The UAV flies in an energy-conserving loiter pattern over the target area. In **
 
 ## 5. Detailed Breakdown: Phase 5 — Descent
 
+```mermaid
+flowchart TD
+    A[Enter Descent Phase h=5000m] --> B["Set Sink Rate h_dot = -1.5 m/s"]
+    B --> C["Set Airspeed V = max(1.2 * V_stall, 30.0 m/s)"]
+    C --> D[Potential Energy Converts to Forward Glide]
+    D --> E[Propeller Windmills & Drives Motor Generator]
+    E --> F["Compute P_regen = 0.35 * (m * g * |h_dot| / 1000)"]
+    F --> G[Charge Battery Pack: SoC increases]
+    G --> H[Step Physics & Update Altitude]
+    H --> I{Is Altitude h <= 200m?}
+    I -- No --> B
+    I -- Yes --> J[Transition to Phase 6: Landing]
+```
+
 ### WHAT happens during Descent?
 The UAV descends from $5000\text{ m}$ to $200\text{ m}$ at a steady sink rate of $\dot{h} = -1.5\text{ m/s}$.
 
@@ -136,6 +203,18 @@ The UAV descends from $5000\text{ m}$ to $200\text{ m}$ at a steady sink rate of
 ---
 
 ## 6. Detailed Breakdown: Phase 6 — Landing
+
+```mermaid
+flowchart TD
+    A[Enter Landing Phase h=200m] --> B["Set Approach Speed V = max(1.1 * V_stall, 22.0 m/s)"]
+    B --> C["Set Touchdown Sink Rate h_dot = -0.8 m/s"]
+    C --> D[Motor Provides Low-Speed Flare Response]
+    D --> E[Step Physics & Flare to Runway]
+    E --> F{Is Altitude h <= 5.0m?}
+    F -- No --> E
+    F -- Yes --> G[Phase = PHASE_COMPLETED & Terminated = True]
+    G --> H[Award +500.0 Terminal Mission Success Reward]
+```
 
 ### WHAT happens during Landing?
 Final approach and touchdown onto the runway ($200\text{ m} \to 0\text{ m}$).

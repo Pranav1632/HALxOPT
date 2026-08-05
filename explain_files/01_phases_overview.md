@@ -9,6 +9,107 @@ Each phase is analyzed through three core analytical lenses:
 
 ---
 
+## 📊 6-Phase Mission Lifecycle & Transition Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Takeoff: Initial Runup (h=0m, V=0)
+    
+    state Takeoff {
+        [*] --> GroundRoll: Max Hybrid Thrust
+        GroundRoll --> LiftOff: V >= 1.15 * V_stall
+        LiftOff --> InitialClimb: Target ROC = +3.0 m/s
+    }
+    
+    Takeoff --> Climb: h >= 200m
+    
+    state Climb {
+        [*] --> EnergyPreservation: Guard α <= 0.05
+        EnergyPreservation --> AltitudeLapse: ROC = 4.5 -> 1.8 m/s
+    }
+    
+    Climb --> Cruise: h >= h_target (5000m)
+    
+    state Cruise {
+        [*] --> OptimalBSFC: Pure Turboshaft (α = 0.0)
+        OptimalBSFC --> LevelFlight: V = 250 km/h
+    }
+    
+    Cruise --> Loiter: Fuel < 45% OR Battery Depleted
+    Cruise --> Descent: Loiter Disabled & Energy Critical
+    
+    state Loiter {
+        [*] --> StealthMode: ICE OFF, α = 1.0
+        StealthMode --> MinimumPowerSpeed: V = 0.76 * V_target
+    }
+    
+    Loiter --> Descent: Fuel < 8% & SoC < 15% OR t_loiter > 8h
+    
+    state Descent {
+        [*] --> Glideslope: ROC = -1.5 m/s
+        Glideslope --> EnergyRegen: P_regen -> Charge Battery
+    }
+    
+    Descent --> Landing: h <= 200m
+    
+    state Landing {
+        [*] --> ApproachFlare: V = 1.10 * V_stall
+        ApproachFlare --> Touchdown: ROC = -0.8 m/s
+    }
+    
+    Landing --> Completed: h <= 5m (Mission Success)
+    Completed --> [*]
+```
+
+---
+
+## 🔄 Simulation Execution Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Next.js Dashboard / User
+    participant ENV as UAVHybridEnv (Gymnasium)
+    participant PHYS as Physics Engine (Aerodynamics & ISA)
+    participant POL as Policy Engine (PPO RL / Heuristic)
+    participant LOG as Telemetry Logger
+
+    UI->>ENV: reset(engine_size_kw, batt_capacity_kwh)
+    ENV->>PHYS: Load aero, motor, battery, engine specs
+    ENV-->>UI: Initial State Vector s_0 (9D)
+
+    loop Every Time Step dt = 10s (Until Mission Completion / Termination)
+        UI->>ENV: step(action / PSR)
+        ENV->>POL: Determine Power-Split Ratio α (or apply override)
+        
+        alt Loiter Phase & Silent Loiter Active & SoC > 3%
+            POL-->>ENV: Override α = 1.0 (Stealth ICE OFF)
+        else Climb Phase
+            POL-->>ENV: Enforce Guard α <= 0.05 (Preserve Battery)
+        end
+
+        ENV->>PHYS: isa_density(h), isa_temperature(h)
+        ENV->>PHYS: stall_speed(weight, ρ), compute_power_required(...)
+        PHYS-->>ENV: P_req (aero + climb power)
+
+        ENV->>PHYS: gagg_ferrar_derating(ρ), max_battery_power(...)
+        PHYS-->>ENV: P_engine_max, P_motor_max
+
+        ENV->>ENV: Calculate P_delivered, P_deficit, Fuel Burn, SoC change
+        
+        alt Sink Rate < 0 (Descent)
+            ENV->>PHYS: compute_regenerative_power(weight, climb_rate)
+            PHYS-->>ENV: P_regen (kw) -> Charge Battery SoC
+        end
+
+        ENV->>ENV: Evaluate Phase Transition Triggers
+        ENV->>LOG: log(t, h, V, P_req, P_del, SoC, Fuel, Phase, ...)
+        ENV-->>UI: Next State s_{t+1}, Reward R_t, Terminated, Info
+    end
+```
+
+---
+
 ## 🛫 Phase 1: Takeoff Phase (`takeoff`)
 
 ### 1. WHAT is the Takeoff Phase?

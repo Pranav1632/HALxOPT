@@ -9,42 +9,29 @@ This document presents an exhaustive explanation of the **Reinforcement Learning
 ### 1. Architectural Design & Training Loop
 The RL framework is built around a custom **Proximal Policy Optimization (PPO)** Actor-Critic Neural Policy implemented in pure zero-dependency NumPy ([`backend/rl/ppo_agent.py`](file:///d:/project/HAL/backend/rl/ppo_agent.py)).
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      GYMNASIUM ENVIRONMENT                       │
-│                       (UAVHybridEnv)                             │
-│                                                                  │
-│  State Vector s_t ∈ ℝ⁹:                                          │
-│  [alt, speed, SoC, f_fuel, P_req, Load_eng, ρ, temp, Phase_ID]   │
-└────────────────────────────────┬─────────────────────────────────┘
-                                 │
-                                 ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                 NUMPY ACTOR-CRITIC NEURAL POLICY                 │
-│                                                                  │
-│  1. Feature Standardization:                                     │
-│     s_norm = [alt/10000, speed/100, SoC, f_fuel, P_req/100, ...]  │
-│                                                                  │
-│  2. Shared Representation (64 Hidden Units, SiLU Activation):   │
-│     h = SiLU(W₁ · s_norm + b₁)                                   │
-│                                                                  │
-│  ┌──────────────────────────────┴─────────────────────────────┐  │
-│  ▼                                                            ▼  │
-│  ACTOR HEAD (Policy Function):       CRITIC HEAD (Value Function):│
-│  α_mean = Sigmoid(W_actor · h + b)   V(s) = W_critic · h + b     │
-│  Output: PSR α ∈ [0.0, 1.0]          Output: Expected Return     │
-└────────────────────────────────┬─────────────────────────────────┘
-                                 │
-                                 ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                     ENVIRONMENT STEP EXECUTION                   │
-│                                                                  │
-│  - Compute Motor Power Demand:   P_motor = α · P_req             │
-│  - Compute Engine Power Demand:  P_engine = (1 - α) · P_req      │
-│  - Apply Altitude Derating & C-Rate Limits                        │
-│  - Step Physics (Fuel Burn, Battery SoC, Alt, Speed)             │
-│  - Calculate Dense Reward R_t & Next State s_{t+1}               │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Gymnasium Environment (UAVHybridEnv)
+        ENV_STATE["State Vector s_t ∈ ℝ⁹:<br>[alt, speed, SoC, f_fuel, P_req, Load_eng, ρ, temp, Phase_ID]"]
+    end
+
+    subgraph NumPy Actor-Critic Neural Policy
+        STANDARDIZE["1. Feature Standardization:<br>s_norm = [alt/10000, speed/100, SoC, f_fuel, P_req/100, ...]"]
+        SHARED_REPR["2. Shared Hidden Layer (64 Neurons, SiLU):<br>h = SiLU(W₁ · s_norm + b₁)"]
+        
+        ACTOR["ACTOR HEAD (Policy Function):<br>α_mean = Sigmoid(W_actor · h + b)<br>Output: Power-Split Ratio α ∈ [0.0, 1.0]"]
+        CRITIC["CRITIC HEAD (Value Function):<br>V(s) = W_critic · h + b<br>Output: Expected Return V(s)"]
+    end
+
+    subgraph Environment Step Execution
+        STEP_EXEC["1. Compute Power Demands: P_motor = α * P_req, P_engine = (1 - α) * P_req<br>2. Apply Altitude Derating & Battery C-Rate Limits<br>3. Step Physics (Fuel Burn, Battery SoC, Alt, Speed)<br>4. Calculate Dense Reward R_t & Next State s_{t+1}"]
+    end
+
+    ENV_STATE --> STANDARDIZE
+    STANDARDIZE --> SHARED_REPR
+    SHARED_REPR --> ACTOR & CRITIC
+    ACTOR --> STEP_EXEC
+    STEP_EXEC -->|Feedback Loop R_t, s_{t+1}| ENV_STATE
 ```
 
 ### 2. Neural Network Specification & Storage Formats
@@ -55,7 +42,36 @@ The trained Actor-Critic model is saved in three multi-platform interoperable fo
 
 ---
 
-## ⚡ Section 2: How RL Output IS DIFFERENT from Traditional / Heuristic & GA Paradigms
+## ⚡ Section 2: Paradigm Architectural Comparison Diagram
+
+```mermaid
+flowchart TD
+    subgraph Paradigm 1: Heuristic Rule-Based Policy
+        H_In[Flight State] --> H_If{IF-THEN Hardcoded Rules}
+        H_If -- Phase=Climb --> H_Out1[Fixed α = 0.50]
+        H_If -- Phase=Cruise --> H_Out2[Fixed α = 0.00]
+        H_If -- Phase=Loiter --> H_Out3[Fixed α = 0.20 / 1.00]
+        style H_If fill:#f9f,stroke:#333,stroke-width:2px
+    end
+
+    subgraph Paradigm 2: Genetic Algorithm (DEAP) Sizing
+        GA_In[Chromosome Search Space] --> GA_Eval[Simulate Full 24h Flight]
+        GA_Eval --> GA_Fit[Evaluate Fitness & STANAG Penalties]
+        GA_Fit --> GA_Out[Static Component Sizes: P_engine_kw, E_battery_kwh]
+        style GA_Fit fill:#bbf,stroke:#333,stroke-width:2px
+    end
+
+    subgraph Paradigm 3: Reinforcement Learning (PPO Neural Policy)
+        RL_In[9D Continuous State Vector s_t] --> RL_NN[Dual-Head Actor-Critic MLP]
+        RL_NN --> RL_Act[Dynamic Continuous Power Split Trajectory α_t ∈ 0..1]
+        RL_Act --> RL_Adapt[Real-time Adaptation to Wind, Turbulence & Battery Heating]
+        style RL_NN fill:#bfb,stroke:#333,stroke-width:2px
+    end
+```
+
+---
+
+## ⚡ Section 3: How RL Output IS DIFFERENT from Traditional / Heuristic & GA Paradigms
 
 To understand why Reinforcement Learning represents a paradigm shift in UAV hybrid energy management, we must analyze how its output differs from traditional approaches:
 
@@ -73,7 +89,7 @@ To understand why Reinforcement Learning represents a paradigm shift in UAV hybr
 
 ---
 
-## 📊 Section 3: Exhaustive Paradigm Comparison Matrix
+## 📊 Section 4: Exhaustive Paradigm Comparison Matrix
 
 | Evaluation Dimension | Traditional Rule-Based (Heuristic) | Genetic Algorithm (DEAP) | Reinforcement Learning (PPO) |
 | :--- | :--- | :--- | :--- |
@@ -89,7 +105,7 @@ To understand why Reinforcement Learning represents a paradigm shift in UAV hybr
 
 ---
 
-## 📈 Section 4: Quantitative Results & SHAP Feature Importance Audit
+## 📈 Section 5: Quantitative Results & SHAP Feature Importance Audit
 
 ### 1. Quantitative Performance Results
 
@@ -121,7 +137,7 @@ SHAP Feature Importance (Impact on Power-Split Ratio α):
 
 ---
 
-## 🔒 Section 5: Hardware & Model Specifications Summary
+## 🔒 Section 6: Hardware & Model Specifications Summary
 
 - **UAV Gross Weight (MTOW)**: $1000\text{ kg}$
 - **Payload Capacity**: $200\text{ kg}$
