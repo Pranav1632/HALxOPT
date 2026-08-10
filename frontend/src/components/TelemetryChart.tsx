@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { TelemetryPoint } from '../types/telemetry';
 
 // Dynamically import react-plotly.js to avoid SSR errors
 const Plot = dynamic(() => import('react-plotly.js'), {
@@ -13,22 +14,6 @@ const Plot = dynamic(() => import('react-plotly.js'), {
     </div>
   )
 });
-
-interface TelemetryPoint {
-  time: number;
-  altitude: number;
-  speed: number;
-  power_required: number;
-  power_delivered: number;
-  power_motor: number;
-  power_engine: number;
-  soc: number;
-  fuel: number;
-  weight: number;
-  phase: string;
-  deficit: number;
-  u: number;
-}
 
 interface TelemetryChartProps {
   telemetry: TelemetryPoint[];
@@ -68,7 +53,9 @@ export default function TelemetryChart({ telemetry }: TelemetryChartProps) {
   const fuelKg = telemetry.map((pt) => pt.fuel);
 
   const altitudeM = telemetry.map((pt) => pt.altitude);
-  const speedMs = telemetry.map((pt) => pt.speed);
+  // Backend stores speed in m/s; convert to km/h for display consistency
+  const speedKmh = telemetry.map((pt) => pt.speed * 3.6);
+  const climbRateMps = telemetry.map((pt) => pt.climb_rate ?? 0);
 
   // Phase transition annotations (for power chart)
   const phaseAnnotations: object[] = [];
@@ -244,15 +231,27 @@ export default function TelemetryChart({ telemetry }: TelemetryChartProps) {
                 fill: 'tozeroy',
                 fillcolor: 'rgba(99, 102, 241, 0.08)',
                 line: { color: '#6366f1', width: 2.5 },
+                hovertemplate: '%{y:.0f} m<extra></extra>',
               },
               {
                 x: timeMinutes,
-                y: speedMs,
-                name: 'Speed (m/s)',
+                y: speedKmh,
+                name: 'Airspeed (km/h)',
                 type: 'scatter',
                 mode: 'lines',
                 yaxis: 'y2',
                 line: { color: '#a855f7', width: 2, dash: 'dot' },
+                hovertemplate: '%{y:.1f} km/h<extra></extra>',
+              },
+              {
+                x: timeMinutes,
+                y: climbRateMps,
+                name: 'Rate of Climb (m/s)',
+                type: 'scatter',
+                mode: 'lines',
+                yaxis: 'y2',
+                line: { color: '#34d399', width: 1.5, dash: 'dashdot' },
+                hovertemplate: '%{y:.2f} m/s<extra></extra>',
               },
             ]}
             layout={{
@@ -263,12 +262,14 @@ export default function TelemetryChart({ telemetry }: TelemetryChartProps) {
                 tickfont: { color: '#6366f1' },
               },
               yaxis2: {
-                title: { text: 'Speed (m/s)', font: { size: 12, color: '#a855f7' } },
+                title: { text: 'Speed (km/h) / Climb Rate (m/s)', font: { size: 12, color: '#a855f7' } },
                 tickfont: { color: '#a855f7' },
                 overlaying: 'y',
                 side: 'right',
                 gridcolor: 'transparent',
               },
+              shapes: phaseShapes,
+              annotations: phaseAnnotations,
             }}
             style={{ width: '100%', height: '500px' }}
             useResizeHandler={true}

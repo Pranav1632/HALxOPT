@@ -1,33 +1,24 @@
 """
 main.py — FastAPI Backend for Hybrid-Electric UAV Propulsion Optimization Simulator.
-
-Endpoints:
-  POST /api/optimize  — Accepts mission parameters, runs DEAP GA, returns optimal
-                         propulsion sizing + full mission flight telemetry.
-  GET  /api/health     — Health check.
-
-Data Flow:
-  1. Frontend sends {target_speed_kmh, target_altitude, payload_weight}
-  2. DEAP GA sizes engine_kw and battery_kwh (Outer Loop)
-  3. Best individual is re-simulated in UAVHybridEnv with heuristic power management
-  4. Time-series telemetry and optimal specs returned as JSON
+Uses modular physics, schemas, ga, env, and rl packages with dynamic environmental controls.
 """
-
 import os
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from optimizer import optimize_propulsion
-from environment import UAVHybridEnv
+
+from schemas import OptimizationRequest, OptimizationResponse, OptimalSpecs, TelemetryPoint
+from ga import optimize_propulsion
+from env import UAVHybridEnv
+from rl import generate_shap_audit_summary
+from rl.ppo_agent import NumPyActorCritic
 
 app = FastAPI(
     title="AeroOptima — Hybrid-Electric UAV Propulsion Optimization API",
     description="IIT Indore × HAL Hackathon: 1000 kg Fixed-Wing UAV System Design",
-    version="2.0.0",
+    version="3.0.0",
 )
 
-# CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,114 +27,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---- Resolve /data directory path ---- #
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+RL_MODEL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rl_model_ppo.json"))
+RL_MODEL_PKL_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rl_model_ppo.pkl"))
 
-# Load motor specs once for response metadata
 with open(os.path.join(DATA_DIR, "motor_specs.json"), "r") as f:
     MOTOR_SPECS = json.load(f)
+with open(os.path.join(DATA_DIR, "aerodynamics.json"), "r") as f:
+    AERO_SPECS = json.load(f)
+with open(os.path.join(DATA_DIR, "turboshaft_specs.json"), "r") as f:
+    TURBOSHAFT_SPECS = json.load(f)
+
+# Load RL agent weights if available
+rl_agent = None
 
 
-# ---- Pydantic Models ---- #
-class OptimizationRequest(BaseModel):
-    target_speed_kmh: float = Field(
-        250.0,
-        description="Target cruise speed in km/h",
-        ge=100.0,
-        le=400.0,
-    )
-    target_altitude: float = Field(
-        5000.0,
-        description="Target cruise altitude in meters",
-        ge=500.0,
-        le=10000.0,
-    )
-    payload_weight: float = Field(
-        200.0,
-        description="Payload weight in kg",
-        ge=50.0,
-        le=350.0,
-    )
-    enable_loiter: bool = Field(
-        True,
-        description="Toggle loiter holding phase vs straight flight"
-    )
-    initial_fuel_fraction: float = Field(
-        1.0,
-        description="Fraction of max fuel capacity to start with (0.1–1.0)",
-        ge=0.1,
-        le=1.0,
-    )
-
-    @model_validator(mode="after")
-    def validate_flight_envelope(self):
-        # Rule 1: High Altitude Payload Ceiling (at >8000m, max payload capped at 200kg)
-        if self.target_altitude > 8000.0 and self.payload_weight > 200.0:
-            raise ValueError(
-                f"Altitude {self.target_altitude}m exceeds flight service ceiling for payload {self.payload_weight}kg. "
-                f"At altitudes > 8000m, maximum allowable payload is 200.0 kg due to air density lapse."
-            )
-
-        # Rule 2: Minimum Cruise Speed at High Altitude (Stall Safety Margin)
-        if self.target_altitude >= 8000.0 and self.target_speed_kmh < 200.0:
-            raise ValueError(
-                f"Target speed {self.target_speed_kmh} km/h is below stall safety limit at altitude {self.target_altitude}m. "
-                f"At altitudes ≥ 8000m, minimum cruise speed must be ≥ 200 km/h."
-            )
-
-        return self
+def load_rl_agent_if_needed():
+    global rl_agent
+    if rl_agent is not None:
+        return rl_agent
+    for path in [RL_MODEL_PKL_PATH, RL_MODEL_PATH]:
+        if os.path.exists(path):
+            try:
+                rl_agent = NumPyActorCritic(state_dim=9)
+                rl_agent.load(path)
+                print(f"[INIT] Loaded PPO RL neural network weights from {path}")
+                return rl_agent
+            except Exception as err:
+                print(f"[WARN] Could not load RL model weights from {path}: {err}")
+    return None
 
 
-class OptimalSpecs(BaseModel):
-    engine_kw: float
-    battery_kwh: float
-    motor_kw: float
-    endurance_hours: float
-    empty_weight_kg: float
-    fuel_weight_kg: float
-    total_weight_kg: float
-    motor_model: str
-    engine_weight_kg: float
-    motor_weight_kg: float
-    battery_weight_kg: float
+# Attempt load on startup
+load_rl_agent_if_needed()
 
 
-class TelemetryPoint(BaseModel):
-    time: float
-    altitude: float
-    speed: float
-    power_required: float
-    power_delivered: float
-    power_motor: float
-    power_engine: float
-    soc: float
-    fuel: float
-    weight: float
-    phase: str
-    deficit: float
-    u: float
-    p_aero: float = 0.0
-    p_climb: float = 0.0
-    climb_rate: float = 0.0
-
-
-class OptimizationResponse(BaseModel):
-    optimal_specs: OptimalSpecs
-    telemetry: list[TelemetryPoint]
-
-
-# ---- Endpoints ---- #
 @app.post("/api/optimize", response_model=OptimizationResponse)
 async def optimize_uav(req: OptimizationRequest):
     print(f"\n[API] RECEIVED API CALL: POST /api/optimize")
-    print(f"   * speed   : {req.target_speed_kmh} km/h")
-    print(f"   * altitude: {req.target_altitude} m")
-    print(f"   * payload : {req.payload_weight} kg")
-    print(f"   * loiter  : {req.enable_loiter}")
-    print(f"   * fuel frac: {req.initial_fuel_fraction * 100:.1f}%")
-    
+    print(f"   * speed       : {req.target_speed_kmh} km/h")
+    print(f"   * altitude    : {req.target_altitude} m")
+    print(f"   * payload     : {req.payload_weight} kg")
+    print(f"   * loiter      : {req.enable_loiter}")
+    print(f"   * fuel frac   : {req.initial_fuel_fraction * 100:.1f}%")
+    print(f"   * headwind    : {req.headwind_kmh} km/h")
+    print(f"   * ambient temp: {req.ambient_temp_c} °C")
+    print(f"   * policy mode : {req.policy_mode}")
+
     try:
-        # 1. Run DEAP Genetic Algorithm (Outer Loop)
+        use_heuristic = (req.policy_mode != "rl")
+        agent = load_rl_agent_if_needed() if not use_heuristic else None
+
         ga_result = optimize_propulsion(
             target_speed_kmh=req.target_speed_kmh,
             target_altitude=req.target_altitude,
@@ -156,10 +90,9 @@ async def optimize_uav(req: OptimizationRequest):
         opt_engine = ga_result["engine_size_kw"]
         opt_battery = ga_result["battery_capacity_kwh"]
 
-        # 2. Re-simulate best individual with fine time steps for clean telemetry
-        print(f"[SIM] SIZING COMPLETE. Re-running dynamic simulation to gather 1-min interval telemetry...")
+        print(f"[SIM] SIZING COMPLETE. Re-running dynamic simulation with environmental factors...")
         print(f"   Using Engine = {opt_engine:.2f} kW, Battery = {opt_battery:.2f} kWh")
-        
+
         env = UAVHybridEnv(
             engine_size_kw=opt_engine,
             battery_capacity_kwh=opt_battery,
@@ -167,27 +100,34 @@ async def optimize_uav(req: OptimizationRequest):
             target_altitude=req.target_altitude,
             payload_weight=req.payload_weight,
             data_dir=DATA_DIR,
-            use_heuristic_policy=True,
+            use_heuristic_policy=use_heuristic,
             dt=60.0,
             enable_loiter=req.enable_loiter,
+            silent_loiter_mode=req.silent_loiter_mode,
             initial_fuel_fraction=req.initial_fuel_fraction,
+            headwind_kmh=req.headwind_kmh,
+            ambient_temp_c=req.ambient_temp_c,
+            turbulence_level=req.turbulence_level,
         )
 
         obs, info = env.reset()
         terminated, truncated = False, False
         step_count = 0
+
         while not (terminated or truncated):
-            obs, reward, terminated, truncated, info = env.step([0.5])
+            if not use_heuristic and agent is not None:
+                try:
+                    psr_act, _ = agent.get_action(obs, deterministic=True)
+                    action = [psr_act]
+                except Exception as e:
+                    print(f"[WARN] RL inference step failed: {e}. Defaulting action.")
+                    action = [0.10]
+            else:
+                action = [0.10]
+
+            obs, reward, terminated, truncated, info = env.step(action)
             step_count += 1
 
-        print(f"[SIM] Flight simulation complete:")
-        print(f"   * Total steps simulated: {step_count} (dt=60s)")
-        print(f"   * Total flight duration: {env.time_elapsed / 3600.0:.2f} hours")
-        print(f"   * Final State of Charge: {env.soc * 100.0:.1f}%")
-        print(f"   * Remaining Fuel weight: {env.fuel_remaining:.2f} kg")
-        print(f"   * Landing safety status: {info.get('reason', 'Terminated normally')}")
-
-        # 3. Build response
         specs = OptimalSpecs(
             engine_kw=round(opt_engine, 2),
             battery_kwh=round(opt_battery, 2),
@@ -200,12 +140,25 @@ async def optimize_uav(req: OptimizationRequest):
             engine_weight_kg=round(env.weight_engine, 2),
             motor_weight_kg=round(env.weight_motor, 2),
             battery_weight_kg=round(env.weight_battery, 2),
+            airframe_weight_kg=AERO_SPECS["airframe_mass_kg"],
+            sfc_base=TURBOSHAFT_SPECS["specific_fuel_consumption_kg_per_kwh"],
+            aspect_ratio=round((AERO_SPECS["wingspan_m"] ** 2) / AERO_SPECS["wing_area_m2"], 2),
+            motor_efficiency_pct=MOTOR_SPECS["peak_efficiency_percent"],
         )
 
         telemetry = [TelemetryPoint(**pt) for pt in env.flight_log]
-        print(f"[API] Response built successfully. Returning {len(telemetry)} telemetry points to frontend UI.\n")
 
-        return OptimizationResponse(optimal_specs=specs, telemetry=telemetry)
+        env_metadata = {
+            "headwind_kmh": req.headwind_kmh,
+            "ambient_temp_c": req.ambient_temp_c,
+            "turbulence_level": req.turbulence_level,
+            "policy_mode": req.policy_mode,
+            "silent_loiter_mode": req.silent_loiter_mode,
+            "wingspan_m": AERO_SPECS["wingspan_m"],
+            "wing_area_m2": AERO_SPECS["wing_area_m2"],
+        }
+
+        return OptimizationResponse(optimal_specs=specs, telemetry=telemetry, env_metadata=env_metadata)
 
     except Exception as e:
         print(f"[ERROR] DURING API CALL HANDLING: {str(e)}")
@@ -214,12 +167,16 @@ async def optimize_uav(req: OptimizationRequest):
         raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
 
 
+@app.get("/api/shap")
+async def get_shap_audit():
+    return generate_shap_audit_summary()
+
+
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "motor": MOTOR_SPECS["model"]}
+    return {"status": "healthy", "motor": MOTOR_SPECS["model"], "version": "3.0.0"}
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
